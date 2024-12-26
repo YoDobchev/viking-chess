@@ -24,11 +24,19 @@ void clearTerminal() {
 #endif
 }
 
+int chartoint(char c) {
+	if (c >= '0' && c <= '9') {
+		return c - '0';
+	}
+	return -1;
+}
+
 enum Squares {
 	EMPTY,
 	ATTACKER,
 	DEFENDER,
 	KING,
+	KING_GOAL,
 };
 
 enum Players {
@@ -36,7 +44,7 @@ enum Players {
 	PLAYER2,
 };
 
-const size_t TOTAL_SQUARES = 4;
+const size_t TOTAL_SQUARES = 5;
 char squareChars[TOTAL_SQUARES];
 
 int** board;
@@ -69,7 +77,7 @@ bool loadSkin() {
 }
 
 bool loadTable() {
-	std::ifstream file("./startingTables/9x9.vch");
+	std::ifstream file("./startingTables/11x11.vch");
 
 	if (!file.is_open()) {
 		std::cerr << "Error: Couldn't open table file" << std::endl;
@@ -153,7 +161,7 @@ bool loadTable() {
 }
 
 void printTable() {
-	clearTerminal();
+	// clearTerminal();
 
 	int rowHelper = 1;
 	char columnHelper = 'a';
@@ -193,27 +201,121 @@ int multipleChoice(const char* choices[], int numChoices) {
 	return choice;
 }
 
-bool isValidCommand(char* command, char* error) {
-	if (command == nullptr) return false;
-	// std::cout << "len " << strlen(command) << std::endl;
-	char inputCommand[5];
+enum COMMAND_TYPES {
+	MOVE,
+	BACK,
+	INFO,
+	HELP,
+};
 
-	while (*command && *command != ' ') {
-		command++;
+int getCommandType(char* command) {
+	char commandTypeString[1024];
+	int i = 0;
+	while (command[i] != ' ' && command[i] != '\0') {
+		commandTypeString[i] = command[i];
+		i++;
+	}
+	commandTypeString[i] = '\0';
+
+	if (strcmp(commandTypeString, "move") == 0) {
+		return MOVE;
+	} else if (strcmp(commandTypeString, "back") == 0) {
+		return BACK;
+	} else if (strcmp(commandTypeString, "info") == 0) {
+		return INFO;
+	} else if (strcmp(commandTypeString, "help") == 0) {
+		return HELP;
+	} else {
+		return -1;
+	}
+}
+
+bool validateNextPositionInput(char* command, char* error, int& i) {
+	while (command[i] != '\0' && command[i] == ' ') {
+		i++;
 	}
 
-	if (strlen(command) < 4) {
-		strcpy(error, "NIGA");
-
+	if (command[i] == '\0') {
+		stpcpy(error, "Not enough parameters. Use 'move <from> <to>' format");
 		return false;
 	}
 
-	// return true;
+	std::cout << "commad[i] " << command[i] << std::endl;
+
+	if (command[i] < 'a' || command[i] > 'a' + boardSize) {
+		std::cout << "command[i]: " << command[i] << std::endl;
+		stpcpy(error, "Invalid position. Each position must start with a letter from the table");
+		return false;
+	}
+
+	i++;
+
+	int num = 0;
+	while (command[i] != '\0' && command[i] != ' ') {
+		if (command[i] < '0' || command[i] > '9') {
+			stpcpy(error, "Number missing from position. Each position must end with a number from the table");
+			return false;
+		}
+		num = num * 10 + chartoint(command[i]);
+		i++;
+	}
+
+	if (num < 1 || num > boardSize) {
+		stpcpy(error, "Invalid position. Each position must end with a number from the table");
+		return false;
+	}
+
+	return true;
+}
+
+bool validateMoveCommand(char* command, char* error) {
+	int i = 4;
+
+	bool arePositionsValid;
+	for (int j = 0; j < 2; ++j) {
+		arePositionsValid = validateNextPositionInput(command, error, i);
+		if (!arePositionsValid) return false;
+	}
+
+	return true;
+}
+
+bool isValidCommand(char* command, char* error) {
+	if (command == nullptr) return false;
+
+	if (strlen(command) < 4) {
+		strcpy(error, "Command must be at least 4 characters long");
+		return false;
+	}
+
+	int inputCommandType = getCommandType(command);
+
+	if (inputCommandType == -1) {
+		strcpy(error, "Input command not recognized. Use 'move <from> <to>', 'back <num>', 'info' or 'help'");
+		return false;
+	}
+
+	switch (inputCommandType) {
+	case MOVE:
+		return validateMoveCommand(command, error);
+		break;
+	case BACK:
+		// return validateBackCommand(command, error);
+		break;
+		// case INFO:
+		// 	return true;
+		// 	break;
+		// case HELP:
+		// 	return true;
+		// 	break;
+	}
+
+	return true;
 }
 
 void playerMove(bool player) {
 	char command[1024];
-	char error[1024] = "";
+	char error[1024] = "", infoMessage[1024] = "";
 	do {
 		printTable();
 		if (strlen(error) > 0) {
@@ -232,7 +334,7 @@ void startGame() {
 	while (!gameEnded) {
 		playerMove(currentTurn);
 
-		currentTurn = currentTurn == PLAYER1 ? PLAYER2 : PLAYER1;
+		currentTurn = !currentTurn;
 	}
 }
 
@@ -242,7 +344,7 @@ int main() {
 
 	if (!loadTable()) return -1;
 
-	printTable();
+	// printTable();
 
 	// std::cout << "Main menu:"
 	//           << "[1] "
