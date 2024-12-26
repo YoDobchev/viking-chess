@@ -1,0 +1,4 @@
+.vscode/
+.clang-format
+game
+compile.sh
