@@ -24,7 +24,7 @@ void clearTerminal() {
 #endif
 }
 
-int chartoint(char c) {
+int charToInt(char c) {
 	if (c >= '0' && c <= '9') {
 		return c - '0';
 	}
@@ -51,7 +51,7 @@ int** board;
 int boardSize = 0;
 
 bool loadSkin() {
-	std::ifstream file("./pieceSkins/minimalistic.vch");
+	std::ifstream file("./pieceSkins/default.vch");
 
 	if (!file.is_open()) {
 		std::cerr << "Error: Couldn't open skin" << std::endl;
@@ -75,6 +75,8 @@ bool loadSkin() {
 
 	return true;
 }
+
+int kingStartingRow = -1, kingStartingCol = -1;
 
 bool loadTable() {
 	std::ifstream file("./startingTables/11x11.vch");
@@ -120,8 +122,12 @@ bool loadTable() {
 				board[row][col] = ATTACKER;
 			else if (line[i] == 'D')
 				board[row][col] = DEFENDER;
-			else if (line[i] == 'K')
+			else if (line[i] == 'K') {
 				board[row][col] = KING;
+				kingStartingRow = row;
+				kingStartingCol = col;
+			} else if (line[i] == 'X')
+				board[row][col] = KING_GOAL;
 			else {
 				std::cerr << "Error: Unrecognized character '" << line[i] << "' at row " << row << ", col " << col << std::endl;
 				delete[] line;
@@ -230,7 +236,7 @@ int getCommandType(char* command) {
 	}
 }
 
-bool validateNextPositionInput(char* command, char* error, int& i) {
+bool getNextMoveCommandCoordinates(int& row, int& col, char* command, char* error, int& i) {
 	while (command[i] != '\0' && command[i] == ' ') {
 		i++;
 	}
@@ -240,47 +246,145 @@ bool validateNextPositionInput(char* command, char* error, int& i) {
 		return false;
 	}
 
-	std::cout << "commad[i] " << command[i] << std::endl;
-
-	if (command[i] < 'a' || command[i] > 'a' + boardSize) {
-		std::cout << "command[i]: " << command[i] << std::endl;
-		stpcpy(error, "Invalid position. Each position must start with a letter from the table");
-		return false;
-	}
+	col = command[i] - 'a';
 
 	i++;
 
-	int num = 0;
+	row = 0;
 	while (command[i] != '\0' && command[i] != ' ') {
 		if (command[i] < '0' || command[i] > '9') {
 			stpcpy(error, "Number missing from position. Each position must end with a number from the table");
 			return false;
 		}
-		num = num * 10 + chartoint(command[i]);
+
+		row = row * 10 + charToInt(command[i]);
 		i++;
 	}
+	row--;
 
-	if (num < 1 || num > boardSize) {
-		stpcpy(error, "Invalid position. Each position must end with a number from the table");
+	return true;
+}
+
+bool validatePositionBounds(int fromRow, int fromCol, int toRow, int toColumn, char* command, char* error) {
+	if (fromRow < 0 || fromRow >= boardSize || fromCol < 0 || fromCol >= boardSize) {
+		strcpy(error, "Invalid 'from' position. The position must be within the board");
+		return false;
+	}
+
+	if (toRow < 0 || toRow >= boardSize || toColumn < 0 || toColumn >= boardSize) {
+		strcpy(error, "Invalid 'to' position. The position must be within the board");
 		return false;
 	}
 
 	return true;
 }
 
-bool validateMoveCommand(char* command, char* error) {
-	int i = 4;
+bool validateIfPieceCanMoveThrough(int fromRow, int fromCol, int toRow, int toCol, char* error) {
+	enum MOVEMENT {
+		VERTICAL,
+		HORIZONTAL,
+	};
 
-	bool arePositionsValid;
-	for (int j = 0; j < 2; ++j) {
-		arePositionsValid = validateNextPositionInput(command, error, i);
-		if (!arePositionsValid) return false;
+	int movement = fromRow == toRow ? HORIZONTAL : VERTICAL;
+	int from = movement == HORIZONTAL ? fromCol : fromRow;
+	int to = movement == HORIZONTAL ? toCol : toRow;
+	if (from < to) {
+		for (int i = from + 1; i < to; ++i) {
+			if (movement == HORIZONTAL) {
+				if (board[fromRow][i] != EMPTY) {
+					strcpy(error, "Invalid move. There is a piece in the way");
+					return false;
+				}
+			} else if (movement == VERTICAL) {
+				if (board[i][fromCol] != EMPTY) {
+					strcpy(error, "Invalid move. There is a piece in the way");
+					return false;
+				}
+			}
+		}
+	} else {
+		for (int i = from - 1; i > to; --i) {
+			if (movement == HORIZONTAL) {
+				if (board[fromRow][i] != EMPTY) {
+					strcpy(error, "Invalid move. There is a piece in the way");
+					return false;
+				}
+			} else if (movement == VERTICAL) {
+				if (board[i][fromCol] != EMPTY) {
+					strcpy(error, "Invalid move. There is a piece in the way");
+					return false;
+				}
+			}
+		}
 	}
 
 	return true;
 }
 
-bool isValidCommand(char* command, char* error) {
+bool validateIfPieceCanMoveTo(int fromRow, int fromCol, int toRow, int toCol, bool player, char* error) {
+	int pieceOnFrom = board[fromRow][fromCol];
+
+	if (fromRow == toRow && fromCol == toCol) {
+		strcpy(error, "Invalid move. The 'from' and 'to' positions cannot be the same");
+		return false;
+	}
+
+	if (pieceOnFrom == EMPTY || pieceOnFrom == KING_GOAL) {
+		strcpy(error, "Invalid move. The 'from' position is empty");
+		return false;
+	}
+
+	if (player == PLAYER1 && pieceOnFrom != ATTACKER) {
+		strcpy(error, "Invalid move. Only the defender can move defenders");
+		return false;
+	}
+
+	if (player == PLAYER2 && pieceOnFrom != DEFENDER) {
+		strcpy(error, "Invalid move. Only the attacker can move attackers");
+		return false;
+	}
+
+	if (toRow == kingStartingRow && toCol == kingStartingCol && pieceOnFrom != KING) {
+		strcpy(error, "Invalid move. Only the king can move to the king's starting position");
+		return false;
+	}
+
+	if (board[toRow][toCol] == KING_GOAL && pieceOnFrom != KING) {
+		strcpy(error, "Invalid move. Only the king can move to the king's goal position");
+		return false;
+	}
+
+	if (board[toRow][toCol] != EMPTY) {
+		strcpy(error, "Invalid move. The destination position is not empty");
+		return false;
+	}
+
+	return true;
+}
+
+bool validateMoveCommand(char* command, char* error, bool player) {
+	int fromRow, fromCol, toRow, toCol;
+	int i = 4;
+	if (!getNextMoveCommandCoordinates(fromRow, fromCol, command, error, i)) return false;
+	if (!getNextMoveCommandCoordinates(toRow, toCol, command, error, i)) return false;
+
+	std::cout << "fromRow: " << fromRow << " fromCol: " << fromCol << " toRow: " << toRow << " toCol: " << toCol << std::endl;
+
+	if (!validatePositionBounds(fromRow, fromCol, toRow, toCol, command, error)) return false;
+
+	if (fromRow != toRow && fromCol != toCol) {
+		strcpy(error, "Invalid move. The move must be either vertical or horizontal");
+		return false;
+	}
+
+	if (!validateIfPieceCanMoveThrough(fromRow, fromCol, toRow, toCol, error)) return false;
+
+	if (!validateIfPieceCanMoveTo(fromRow, fromCol, toRow, toCol, player, error)) return false;
+
+	return true;
+}
+
+bool isValidCommand(char* command, char* error, bool player) {
 	if (command == nullptr) return false;
 
 	if (strlen(command) < 4) {
@@ -297,7 +401,7 @@ bool isValidCommand(char* command, char* error) {
 
 	switch (inputCommandType) {
 	case MOVE:
-		return validateMoveCommand(command, error);
+		return validateMoveCommand(command, error, player);
 		break;
 	case BACK:
 		// return validateBackCommand(command, error);
@@ -316,6 +420,7 @@ bool isValidCommand(char* command, char* error) {
 void playerMove(bool player) {
 	char command[1024];
 	char error[1024] = "", infoMessage[1024] = "";
+
 	do {
 		printTable();
 		if (strlen(error) > 0) {
@@ -324,7 +429,7 @@ void playerMove(bool player) {
 		}
 		std::cout << ((player == PLAYER1) ? "[ATTACKER]: " : "[DEFENDER]: ");
 		std::cin.getline(command, 1024);
-	} while (!isValidCommand(command, error));
+	} while (!isValidCommand(command, error, player));
 }
 
 void startGame() {
@@ -343,8 +448,6 @@ int main() {
 	if (!loadSkin()) return -1;
 
 	if (!loadTable()) return -1;
-
-	// printTable();
 
 	// std::cout << "Main menu:"
 	//           << "[1] "
