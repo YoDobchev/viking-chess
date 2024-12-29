@@ -76,7 +76,7 @@ bool loadSkin() {
 	return true;
 }
 
-int kingStartingRow = -1, kingStartingCol = -1;
+int kingThroneRow = -1, kingThroneCol = -1;
 
 bool loadTable() {
 	std::ifstream file("./startingTables/11x11.vch");
@@ -124,8 +124,8 @@ bool loadTable() {
 				board[row][col] = DEFENDER;
 			else if (line[i] == 'K') {
 				board[row][col] = KING;
-				kingStartingRow = row;
-				kingStartingCol = col;
+				kingThroneRow = row;
+				kingThroneCol = col;
 			} else if (line[i] == 'X')
 				board[row][col] = KING_GOAL;
 			else {
@@ -207,7 +207,7 @@ int multipleChoice(const char* choices[], int numChoices) {
 	return choice;
 }
 
-enum COMMAND_TYPES {
+enum CommandTypes {
 	MOVE,
 	BACK,
 	INFO,
@@ -280,12 +280,12 @@ bool validatePositionBounds(int fromRow, int fromCol, int toRow, int toColumn, c
 }
 
 bool validateIfPieceCanMoveThrough(int fromRow, int fromCol, int toRow, int toCol, char* error) {
-	enum MOVEMENT {
+	enum Movement {
 		VERTICAL,
 		HORIZONTAL,
 	};
 
-	int movement = fromRow == toRow ? HORIZONTAL : VERTICAL;
+	bool movement = fromRow == toRow ? HORIZONTAL : VERTICAL;
 	int from = movement == HORIZONTAL ? fromCol : fromRow;
 	int to = movement == HORIZONTAL ? toCol : toRow;
 	if (from < to) {
@@ -335,22 +335,22 @@ bool validateIfPieceCanMoveTo(int fromRow, int fromCol, int toRow, int toCol, bo
 	}
 
 	if (player == PLAYER1 && pieceOnFrom != ATTACKER) {
-		strcpy(error, "Invalid move. Only the defender can move defenders");
+		strcpy(error, "Invalid move. Only the defender can move defenders and the king");
 		return false;
 	}
 
-	if (player == PLAYER2 && pieceOnFrom != DEFENDER) {
+	if (player == PLAYER2 && pieceOnFrom != DEFENDER && pieceOnFrom != KING) {
 		strcpy(error, "Invalid move. Only the attacker can move attackers");
 		return false;
 	}
 
-	if (toRow == kingStartingRow && toCol == kingStartingCol && pieceOnFrom != KING) {
+	if (toRow == kingThroneRow && toCol == kingThroneCol && pieceOnFrom != KING) {
 		strcpy(error, "Invalid move. Only the king can move to the king's starting position");
 		return false;
 	}
 
 	if (board[toRow][toCol] == KING_GOAL && pieceOnFrom != KING) {
-		strcpy(error, "Invalid move. Only the king can move to the king's goal position");
+		strcpy(error, "Invalid move. Only the king can move to the king's goal positions");
 		return false;
 	}
 
@@ -368,8 +368,6 @@ bool validateMoveCommand(char* command, char* error, bool player) {
 	if (!getNextMoveCommandCoordinates(fromRow, fromCol, command, error, i)) return false;
 	if (!getNextMoveCommandCoordinates(toRow, toCol, command, error, i)) return false;
 
-	std::cout << "fromRow: " << fromRow << " fromCol: " << fromCol << " toRow: " << toRow << " toCol: " << toCol << std::endl;
-
 	if (!validatePositionBounds(fromRow, fromCol, toRow, toCol, command, error)) return false;
 
 	if (fromRow != toRow && fromCol != toCol) {
@@ -377,9 +375,9 @@ bool validateMoveCommand(char* command, char* error, bool player) {
 		return false;
 	}
 
-	if (!validateIfPieceCanMoveThrough(fromRow, fromCol, toRow, toCol, error)) return false;
-
 	if (!validateIfPieceCanMoveTo(fromRow, fromCol, toRow, toCol, player, error)) return false;
+
+	if (!validateIfPieceCanMoveThrough(fromRow, fromCol, toRow, toCol, error)) return false;
 
 	return true;
 }
@@ -417,27 +415,95 @@ bool isValidCommand(char* command, char* error, bool player) {
 	return true;
 }
 
-void playerMove(bool player) {
-	char command[1024];
-	char error[1024] = "", infoMessage[1024] = "";
+bool canCapture(int row, int col, int dRow, int dCol) {
+	int neighbourRow = row + dRow;
+	int neighbourCol = col + dCol;
+	int twoTileAwayRow = row + 2 * dRow;
+	int twoTileAwayCol = col + 2 * dCol;
 
+	if (twoTileAwayRow < 0 || twoTileAwayRow >= boardSize || twoTileAwayCol < 0 || twoTileAwayCol >= boardSize) return false;
+
+	if (board[neighbourRow][neighbourCol] == EMPTY) return false;
+
+	int twoTileAwaySquare = board[twoTileAwayRow][twoTileAwayCol];
+	int currentPiece = board[row][col];
+
+	bool samePiece = (twoTileAwaySquare == currentPiece);
+	bool kingStart = (twoTileAwayRow == kingThroneRow && twoTileAwayCol == kingThroneCol);
+	bool kingGoal = (twoTileAwaySquare == KING_GOAL);
+
+	return samePiece || kingStart || kingGoal;
+}
+
+void executeMoveCommand(char* command, char* infoMessage, bool player) {
+	int fromRow, fromCol, toRow, toCol;
+	int i = 4;
+	if (!getNextMoveCommandCoordinates(fromRow, fromCol, command, infoMessage, i)) return;
+	if (!getNextMoveCommandCoordinates(toRow, toCol, command, infoMessage, i)) return;
+	// std::cout << "fromRow: " << fromRow << " fromCol: " << fromCol << " toRow: " << toRow << " toCol: " << toCol << std::endl;
+
+	board[toRow][toCol] = board[fromRow][fromCol];
+	board[fromRow][fromCol] = EMPTY;
+
+	const int directions[4][2] = {
+	    {0, -1}, // Left
+	    {0, 1},  // Right
+	    {1, 0},  // Up
+	    {-1, 0}  // Down
+	};
+
+	for (int i = 0; i < 4; ++i) {
+		int dRow = directions[i][0], dCol = directions[i][1];
+		if (canCapture(toRow, toCol, dRow, dCol)) {
+			board[toRow + dRow][toCol + dCol] = EMPTY;
+		}
+	}
+}
+
+void executeCommand(char* command, char* infoMessage, bool player) {
+	int inputCommandType = getCommandType(command);
+	switch (inputCommandType) {
+	case MOVE:
+		executeMoveCommand(command, infoMessage, player);
+		break;
+	case BACK:
+		break;
+	case INFO:
+		break;
+	case HELP:
+		break;
+	}
+}
+
+void playerMove(bool player, char* infoMessage) {
+	char command[1024];
+
+	char error[1024] = "";
 	do {
 		printTable();
 		if (strlen(error) > 0) {
 			std::cerr << error << std::endl;
 			error[0] = '\0';
 		}
+		std::cout << strlen(infoMessage) << std::endl;
+		if (strlen(infoMessage) > 0) {
+			std::cout << infoMessage << std::endl;
+			infoMessage[0] = '\0';
+		}
 		std::cout << ((player == PLAYER1) ? "[ATTACKER]: " : "[DEFENDER]: ");
 		std::cin.getline(command, 1024);
 	} while (!isValidCommand(command, error, player));
+
+	executeCommand(command, infoMessage, player);
 }
 
 void startGame() {
 	bool gameEnded = false;
 	bool currentTurn = PLAYER1;
+	char infoMessage[1024] = "";
 
 	while (!gameEnded) {
-		playerMove(currentTurn);
+		playerMove(currentTurn, infoMessage);
 
 		currentTurn = !currentTurn;
 	}
