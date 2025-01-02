@@ -79,7 +79,7 @@ bool loadSkin() {
 int kingThroneRow = -1, kingThroneCol = -1;
 
 bool loadTable() {
-	std::ifstream file("./startingTables/11x11.vch");
+	std::ifstream file("./startingTables/test.vch");
 
 	if (!file.is_open()) {
 		std::cerr << "Error: Couldn't open table file" << std::endl;
@@ -184,7 +184,11 @@ void printTable() {
 
 	for (int i = 0; i < boardSize; ++i) {
 		for (int j = 0; j < boardSize; ++j) {
-			std::cout << squareChars[board[i][j]];
+			if (i == kingThroneCol && j == kingThroneRow && board[i][j] != KING) {
+				std::cout << squareChars[KING_GOAL];
+			} else {
+				std::cout << squareChars[board[i][j]];
+			}
 			if (j != boardSize - 1) std::cout << ' ';
 		}
 		std::cout << "| " << rowHelper++;
@@ -242,7 +246,7 @@ bool getNextMoveCommandCoordinates(int& row, int& col, char* command, char* erro
 	}
 
 	if (command[i] == '\0') {
-		stpcpy(error, "Not enough parameters. Use 'move <from> <to>' format");
+		strcpy(error, "Not enough parameters. Use 'move <from> <to>' format");
 		return false;
 	}
 
@@ -253,7 +257,7 @@ bool getNextMoveCommandCoordinates(int& row, int& col, char* command, char* erro
 	row = 0;
 	while (command[i] != '\0' && command[i] != ' ') {
 		if (command[i] < '0' || command[i] > '9') {
-			stpcpy(error, "Number missing from position. Each position must end with a number from the table");
+			strcpy(error, "Number missing from position. Each position must end with a number from the table");
 			return false;
 		}
 
@@ -415,31 +419,59 @@ bool isValidCommand(char* command, char* error, bool player) {
 	return true;
 }
 
+bool canCaptureKing(int row, int col) {
+	const int directions[4][2] = {
+	    {0, -1}, // Left
+	    {0, 1},  // Right
+	    {1, 0},  // Up
+	    {-1, 0}  // Down
+	};
+
+	for (int i = 0; i < 4; ++i) {
+		int dRow = directions[i][0], dCol = directions[i][1];
+		bool isEdge = row + dRow < 0 || row + dRow >= boardSize || col + dCol < 0 || col + dCol >= boardSize;
+
+		if (isEdge) continue;
+
+		bool isAttacker = board[row + dRow][col + dCol] == ATTACKER;
+		bool isKingGoal = board[row + dRow][col + dCol] == KING_GOAL;
+		bool isKingThrone = row + dRow == kingThroneRow && col + dCol == kingThroneCol;
+
+		if (!(isAttacker || isKingGoal || isKingThrone)) return false;
+	}
+
+	return true;
+}
+
 bool canCapture(int row, int col, int dRow, int dCol) {
 	int neighbourRow = row + dRow;
 	int neighbourCol = col + dCol;
 	int twoTileAwayRow = row + 2 * dRow;
 	int twoTileAwayCol = col + 2 * dCol;
 
-	if (twoTileAwayRow < 0 || twoTileAwayRow >= boardSize || twoTileAwayCol < 0 || twoTileAwayCol >= boardSize) return false;
+	if (neighbourRow < 0 || neighbourRow >= boardSize || neighbourCol < 0 || neighbourCol >= boardSize) return false;
 
 	if (board[neighbourRow][neighbourCol] == EMPTY) return false;
+
+	if (board[neighbourRow][neighbourCol] == KING) return canCaptureKing(neighbourRow, neighbourCol);
+
+	if (twoTileAwayRow < 0 || twoTileAwayRow >= boardSize || twoTileAwayCol < 0 || twoTileAwayCol >= boardSize) return false;
 
 	int twoTileAwaySquare = board[twoTileAwayRow][twoTileAwayCol];
 	int currentPiece = board[row][col];
 
 	bool samePiece = (twoTileAwaySquare == currentPiece);
-	bool kingStart = (twoTileAwayRow == kingThroneRow && twoTileAwayCol == kingThroneCol);
+	bool kingThrone = (twoTileAwayRow == kingThroneRow && twoTileAwayCol == kingThroneCol);
 	bool kingGoal = (twoTileAwaySquare == KING_GOAL);
 
-	return samePiece || kingStart || kingGoal;
+	return samePiece || kingThrone || kingGoal;
 }
 
-void executeMoveCommand(char* command, char* infoMessage, bool player) {
+void executeMoveCommand(char* command, char* infoMessage, bool& player) {
 	int fromRow, fromCol, toRow, toCol;
 	int i = 4;
-	if (!getNextMoveCommandCoordinates(fromRow, fromCol, command, infoMessage, i)) return;
-	if (!getNextMoveCommandCoordinates(toRow, toCol, command, infoMessage, i)) return;
+	getNextMoveCommandCoordinates(fromRow, fromCol, command, infoMessage, i);
+	getNextMoveCommandCoordinates(toRow, toCol, command, infoMessage, i);
 	// std::cout << "fromRow: " << fromRow << " fromCol: " << fromCol << " toRow: " << toRow << " toCol: " << toCol << std::endl;
 
 	board[toRow][toCol] = board[fromRow][fromCol];
@@ -458,9 +490,11 @@ void executeMoveCommand(char* command, char* infoMessage, bool player) {
 			board[toRow + dRow][toCol + dCol] = EMPTY;
 		}
 	}
+
+	player = !player;
 }
 
-void executeCommand(char* command, char* infoMessage, bool player) {
+void executeCommand(char* command, char* infoMessage, bool& player) {
 	int inputCommandType = getCommandType(command);
 	switch (inputCommandType) {
 	case MOVE:
@@ -475,7 +509,26 @@ void executeCommand(char* command, char* infoMessage, bool player) {
 	}
 }
 
-void playerMove(bool player, char* infoMessage) {
+bool hasGameEnded() {
+	bool isKingAlive = false;
+	int attackerCount = 0;
+	int defenderCount = 0;
+	for (int i = 0; i < boardSize; ++i) {
+		for (int j = 0; j < boardSize; ++j) {
+			if (board[i][j] == ATTACKER) {
+				attackerCount++;
+			} else if (board[i][j] == DEFENDER) {
+				defenderCount++;
+			} else if (board[i][j] == KING) {
+				isKingAlive = true;
+			}
+		}
+	}
+
+	return (attackerCount == 0) || (!isKingAlive) || (defenderCount == 0 && !isKingAlive);
+}
+
+void playerMove(bool& player, char* infoMessage) {
 	char command[1024];
 
 	char error[1024] = "";
@@ -485,7 +538,6 @@ void playerMove(bool player, char* infoMessage) {
 			std::cerr << error << std::endl;
 			error[0] = '\0';
 		}
-		std::cout << strlen(infoMessage) << std::endl;
 		if (strlen(infoMessage) > 0) {
 			std::cout << infoMessage << std::endl;
 			infoMessage[0] = '\0';
@@ -505,8 +557,12 @@ void startGame() {
 	while (!gameEnded) {
 		playerMove(currentTurn, infoMessage);
 
-		currentTurn = !currentTurn;
+		gameEnded = hasGameEnded();
 	}
+
+	printTable();
+	std::cout << infoMessage << std::endl;
+	std::cout << "Game ended" << std::endl;
 }
 
 int main() {
