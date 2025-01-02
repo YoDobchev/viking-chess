@@ -244,7 +244,6 @@ bool getNextMoveCommandCoordinates(int& row, int& col, char* command, char* erro
 	while (command[i] != '\0' && command[i] == ' ') {
 		i++;
 	}
-
 	if (command[i] == '\0') {
 		strcpy(error, "Not enough parameters. Use 'move <from> <to>' format");
 		return false;
@@ -366,7 +365,19 @@ bool validateIfPieceCanMoveTo(int fromRow, int fromCol, int toRow, int toCol, bo
 	return true;
 }
 
+bool canOpenMoveFile(char* error) {
+	std::ifstream movesFile("moves.vch");
+	if (!movesFile.is_open()) {
+		std::cerr << "Error: Couldn't open moves.vch file" << std::endl;
+		return false;
+	}
+	movesFile.close();
+	return true;
+}
+
 bool validateMoveCommand(char* command, char* error, bool player) {
+	if (!canOpenMoveFile(error)) return false;
+
 	int fromRow, fromCol, toRow, toCol;
 	int i = 4;
 	if (!getNextMoveCommandCoordinates(fromRow, fromCol, command, error, i)) return false;
@@ -382,6 +393,54 @@ bool validateMoveCommand(char* command, char* error, bool player) {
 	if (!validateIfPieceCanMoveTo(fromRow, fromCol, toRow, toCol, player, error)) return false;
 
 	if (!validateIfPieceCanMoveThrough(fromRow, fromCol, toRow, toCol, error)) return false;
+
+	return true;
+}
+
+bool getBackCommandParameter(char* command, char* error, int& num) {
+	int i = 4;
+	while (command[i] != '\0' && command[i] == ' ') {
+		i++;
+	}
+
+	if (command[i] == '\0') return true;
+
+	num = 0;
+	while (command[i] != '\0') {
+		if (command[i] < '0' || command[i] > '9') {
+			strcpy(error, "Invalid parameter. The parameter must be a number");
+			return false;
+		}
+		num = num * 10 + charToInt(command[i]);
+		i++;
+	}
+
+	return true;
+}
+
+bool validateBackCommand(char* command, char* error) {
+	if (!canOpenMoveFile(error)) return false;
+
+	std::ifstream movesFile("moves.vch");
+
+	int stepsBack = 1;
+
+	if (!getBackCommandParameter(command, error, stepsBack)) return false;
+
+	int recordedMovesCount = 0;
+	const int MAX_MOVE_LENGTH = 16;
+	char buffer[MAX_MOVE_LENGTH];
+
+	while (movesFile.getline(buffer, MAX_MOVE_LENGTH)) {
+		++recordedMovesCount;
+	}
+
+	if (stepsBack > recordedMovesCount) {
+		strcpy(error, "Invalid parameter. The parameter must be less than the number of moves");
+		return false;
+	}
+
+	movesFile.close();
 
 	return true;
 }
@@ -406,7 +465,7 @@ bool isValidCommand(char* command, char* error, bool player) {
 		return validateMoveCommand(command, error, player);
 		break;
 	case BACK:
-		// return validateBackCommand(command, error);
+		return validateBackCommand(command, error);
 		break;
 		// case INFO:
 		// 	return true;
@@ -467,12 +526,32 @@ bool canCapture(int row, int col, int dRow, int dCol) {
 	return samePiece || kingThrone || kingGoal;
 }
 
+void appendMoveInfo(char* infoMessage, int row, int col) {
+    char colChar[2] = {(char)(col + 'a'), '\0'};
+    char rowChar[10];
+
+    int index = 0;
+    int rowNumber = row + 1;
+    while (rowNumber > 0) {
+        rowChar[index++] = (char)((rowNumber % 10) + '0');
+        rowNumber /= 10;
+    }
+    rowChar[index] = '\0';
+
+    for (int i = 0; i < index / 2; ++i) {
+        std::swap(rowChar[i], rowChar[index - i - 1]);
+    }
+
+    strcat(infoMessage, colChar);
+    strcat(infoMessage, rowChar);
+    strcat(infoMessage, " ");
+}
+
 void executeMoveCommand(char* command, char* infoMessage, bool& player) {
 	int fromRow, fromCol, toRow, toCol;
 	int i = 4;
 	getNextMoveCommandCoordinates(fromRow, fromCol, command, infoMessage, i);
 	getNextMoveCommandCoordinates(toRow, toCol, command, infoMessage, i);
-	// std::cout << "fromRow: " << fromRow << " fromCol: " << fromCol << " toRow: " << toRow << " toCol: " << toCol << std::endl;
 
 	board[toRow][toCol] = board[fromRow][fromCol];
 	board[fromRow][fromCol] = EMPTY;
@@ -484,14 +563,100 @@ void executeMoveCommand(char* command, char* infoMessage, bool& player) {
 	    {-1, 0}  // Down
 	};
 
+	std::ofstream movesFile("moves.vch", std::ios::app);
+
+	movesFile << (char)('a' + fromCol) << (fromRow + 1) << (char)('a' + toCol) << (toRow + 1);
+
+	bool atLeastOneCapture = false;
 	for (int i = 0; i < 4; ++i) {
 		int dRow = directions[i][0], dCol = directions[i][1];
+		int captureRow = toRow + dRow;
+		int captureCol = toCol + dCol;
 		if (canCapture(toRow, toCol, dRow, dCol)) {
+			if (!atLeastOneCapture) {
+				strcat(infoMessage, (player == PLAYER1) ? "Attacker captured: " : "Defender captured: ");
+
+				movesFile << 'x';
+				atLeastOneCapture = true;
+			}
+
+			appendMoveInfo(infoMessage, captureRow, captureCol);
+			movesFile << (char)('a' + captureCol) << (captureRow + 1);
+
 			board[toRow + dRow][toCol + dCol] = EMPTY;
 		}
 	}
 
+	movesFile << std::endl;
+	movesFile.close();
+
 	player = !player;
+}
+
+void getNextMoveFileCoordinates(int& row, int& col, char* move, int& i) {
+	col = move[i] - 'a';
+
+	i++;
+
+	row = 0;
+	while (move[i] != '\0' && move[i] >= '0' && move[i] <= '9') {
+		row = row * 10 + charToInt(move[i]);
+		i++;
+	}
+	row--;
+}
+
+void reverseMove(char* move, bool& player, char* infoMessage) {
+	int i = 0;
+	int fromRow, fromCol, toRow, toCol;
+	getNextMoveFileCoordinates(fromRow, fromCol, move, i);
+	getNextMoveFileCoordinates(toRow, toCol, move, i);
+
+	board[fromRow][fromCol] = board[toRow][toCol];
+	board[toRow][toCol] = EMPTY;
+
+	if (move[i] != 'x') {
+		player = !player;
+		return;
+	}
+
+	i++;
+
+	while (move[i] != '\0') {
+		int capturedCol, capturedRow;
+		getNextMoveFileCoordinates(capturedRow, capturedCol, move, i);
+
+		board[capturedRow][capturedCol] = (player ? DEFENDER : ATTACKER);
+	}
+
+	player = !player;
+}
+
+void executeBackCommand(char* command, char* infoMessage, bool& player) {
+	std::ifstream movesFile("moves.vch");
+
+	// From, to moves - max 6 characters
+	// x - 1 character
+	// Max captures - 3 x 3 characters each
+	const int MAX_MOVE_LENGTH = 16;
+	char moves[300][MAX_MOVE_LENGTH];
+	int moveCount = 0;
+	char move[MAX_MOVE_LENGTH];
+	while (movesFile.getline(move, MAX_MOVE_LENGTH)) {
+		strcpy(moves[moveCount++], move);
+	}
+
+	movesFile.close();
+
+	std::ofstream newMovesFile("moves.vch", std::ios::trunc);
+
+	for (int i = 0; i < moveCount - 1; ++i) {
+		newMovesFile << moves[i] << std::endl;
+	}
+
+	newMovesFile.close();
+
+	reverseMove(moves[moveCount - 1], player, infoMessage);
 }
 
 void executeCommand(char* command, char* infoMessage, bool& player) {
@@ -501,6 +666,7 @@ void executeCommand(char* command, char* infoMessage, bool& player) {
 		executeMoveCommand(command, infoMessage, player);
 		break;
 	case BACK:
+		executeBackCommand(command, infoMessage, player);
 		break;
 	case INFO:
 		break;
@@ -550,6 +716,12 @@ void playerMove(bool& player, char* infoMessage) {
 }
 
 void startGame() {
+	std::ofstream file("moves.vch", std::ios::trunc);
+	if (!file.is_open()) {
+		std::cerr << "Error: Couldn't open moves.vch" << std::endl;
+		return;
+	}
+	file.close();
 	bool gameEnded = false;
 	bool currentTurn = PLAYER1;
 	char infoMessage[1024] = "";
