@@ -527,24 +527,24 @@ bool canCapture(int row, int col, int dRow, int dCol) {
 }
 
 void appendMoveInfo(char* infoMessage, int row, int col) {
-    char colChar[2] = {(char)(col + 'a'), '\0'};
-    char rowChar[10];
+	char colChar[2] = {(char)(col + 'a'), '\0'};
+	char rowChar[10];
 
-    int index = 0;
-    int rowNumber = row + 1;
-    while (rowNumber > 0) {
-        rowChar[index++] = (char)((rowNumber % 10) + '0');
-        rowNumber /= 10;
-    }
-    rowChar[index] = '\0';
+	int index = 0;
+	int rowNumber = row + 1;
+	while (rowNumber > 0) {
+		rowChar[index++] = (char)((rowNumber % 10) + '0');
+		rowNumber /= 10;
+	}
+	rowChar[index] = '\0';
 
-    for (int i = 0; i < index / 2; ++i) {
-        std::swap(rowChar[i], rowChar[index - i - 1]);
-    }
+	for (int i = 0; i < index / 2; ++i) {
+		std::swap(rowChar[i], rowChar[index - i - 1]);
+	}
 
-    strcat(infoMessage, colChar);
-    strcat(infoMessage, rowChar);
-    strcat(infoMessage, " ");
+	strcat(infoMessage, colChar);
+	strcat(infoMessage, rowChar);
+	strcat(infoMessage, " ");
 }
 
 void executeMoveCommand(char* command, char* infoMessage, bool& player) {
