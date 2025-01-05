@@ -1,4 +1,4 @@
-/*
+/**
  *
  * Solution to course project 7
  * Introduction to programming course
@@ -31,12 +31,22 @@ int charToInt(char c) {
 	return -1;
 }
 
-enum Squares {
+enum PositionType {
+	PIECE,
+	SQUARE,
+};
+
+enum Pieces {
 	EMPTY,
 	ATTACKER,
 	DEFENDER,
 	KING,
+};
+
+enum Squares {
+	NORMAL,
 	KING_GOAL,
+	KING_THRONE,
 };
 
 enum Players {
@@ -47,7 +57,7 @@ enum Players {
 const size_t TOTAL_SQUARES = 5;
 char squareChars[TOTAL_SQUARES];
 
-int** board;
+int*** board;
 int boardSize = 0;
 
 bool loadSkin() {
@@ -76,8 +86,6 @@ bool loadSkin() {
 	return true;
 }
 
-int kingThroneRow = -1, kingThroneCol = -1;
-
 bool loadTable() {
 	std::ifstream file("./startingTables/test.vch");
 
@@ -102,9 +110,15 @@ bool loadTable() {
 		}
 	}
 
-	board = new int*[boardSize];
+	board = new int**[boardSize];
 	for (int i = 0; i < boardSize; ++i) {
-		board[i] = new int[boardSize];
+		board[i] = new int*[boardSize];
+		for (int j = 0; j < boardSize; ++j) {
+			// As the king can be on the throne or his goal, the position should
+			// have infomation about the type of piece and type of square
+			// 0 - piece, 1 - square
+			board[i][j] = new int[2];
+		}
 	}
 
 	file.clear();
@@ -116,23 +130,28 @@ bool loadTable() {
 		for (size_t i = 0; i < strlen(line); ++i) {
 			if (line[i] == ' ') continue;
 
+			board[row][col][SQUARE] = NORMAL;
+
 			if (line[i] == '*')
-				board[row][col] = EMPTY;
+				board[row][col][PIECE] = EMPTY;
 			else if (line[i] == 'A')
-				board[row][col] = ATTACKER;
+				board[row][col][PIECE] = ATTACKER;
 			else if (line[i] == 'D')
-				board[row][col] = DEFENDER;
+				board[row][col][PIECE] = DEFENDER;
 			else if (line[i] == 'K') {
-				board[row][col] = KING;
-				kingThroneRow = row;
-				kingThroneCol = col;
-			} else if (line[i] == 'X')
-				board[row][col] = KING_GOAL;
-			else {
+				board[row][col][PIECE] = KING;
+				board[row][col][SQUARE] = KING_THRONE;
+			} else if (line[i] == 'X') {
+				board[row][col][PIECE] = EMPTY;
+				board[row][col][SQUARE] = KING_GOAL;
+			} else {
 				std::cerr << "Error: Unrecognized character '" << line[i] << "' at row " << row << ", col " << col << std::endl;
 				delete[] line;
 
 				for (int j = 0; j <= row; ++j) {
+					for (int k = 0; k < boardSize; ++k) {
+						delete[] board[j][k];
+					}
 					delete[] board[j];
 				}
 				delete[] board;
@@ -140,10 +159,14 @@ bool loadTable() {
 			}
 			col++;
 		}
+
 		if (col != boardSize) {
 			std::cerr << "Error: Inconsistent number of columns at row " << row << std::endl;
 			delete[] line;
 			for (int j = 0; j <= row; ++j) {
+				for (int k = 0; k < boardSize; ++k) {
+					delete[] board[j][k];
+				}
 				delete[] board[j];
 			}
 			delete[] board;
@@ -153,16 +176,6 @@ bool loadTable() {
 	}
 
 	delete[] line;
-
-	if (row != boardSize) {
-		std::cerr << "Error: Inconsistent number of rows. Expected " << boardSize << ", got " << row << std::endl;
-		for (int i = 0; i < row; ++i) {
-			delete[] board[i];
-		}
-		delete[] board;
-		return false;
-	}
-
 	return true;
 }
 
@@ -181,13 +194,13 @@ void printTable() {
 		std::cout << "_ ";
 	}
 	std::cout << std::endl;
-
 	for (int i = 0; i < boardSize; ++i) {
 		for (int j = 0; j < boardSize; ++j) {
-			if (i == kingThroneCol && j == kingThroneRow && board[i][j] != KING) {
-				std::cout << squareChars[KING_GOAL];
+			if (board[i][j][PIECE] == EMPTY && (board[i][j][SQUARE] == KING_GOAL || board[i][j][SQUARE] == KING_THRONE)) {
+				const int INDEX_FOR_THRONE_AND_GOAL = 4;
+				std::cout << squareChars[INDEX_FOR_THRONE_AND_GOAL];
 			} else {
-				std::cout << squareChars[board[i][j]];
+				std::cout << squareChars[board[i][j][PIECE]];
 			}
 			if (j != boardSize - 1) std::cout << ' ';
 		}
@@ -294,12 +307,12 @@ bool validateIfPieceCanMoveThrough(int fromRow, int fromCol, int toRow, int toCo
 	if (from < to) {
 		for (int i = from + 1; i < to; ++i) {
 			if (movement == HORIZONTAL) {
-				if (board[fromRow][i] != EMPTY) {
+				if (board[fromRow][i][PIECE] != EMPTY) {
 					strcpy(error, "Invalid move. There is a piece in the way");
 					return false;
 				}
 			} else if (movement == VERTICAL) {
-				if (board[i][fromCol] != EMPTY) {
+				if (board[i][fromCol][PIECE] != EMPTY) {
 					strcpy(error, "Invalid move. There is a piece in the way");
 					return false;
 				}
@@ -308,12 +321,12 @@ bool validateIfPieceCanMoveThrough(int fromRow, int fromCol, int toRow, int toCo
 	} else {
 		for (int i = from - 1; i > to; --i) {
 			if (movement == HORIZONTAL) {
-				if (board[fromRow][i] != EMPTY) {
+				if (board[fromRow][i][PIECE] != EMPTY) {
 					strcpy(error, "Invalid move. There is a piece in the way");
 					return false;
 				}
 			} else if (movement == VERTICAL) {
-				if (board[i][fromCol] != EMPTY) {
+				if (board[i][fromCol][PIECE] != EMPTY) {
 					strcpy(error, "Invalid move. There is a piece in the way");
 					return false;
 				}
@@ -325,14 +338,14 @@ bool validateIfPieceCanMoveThrough(int fromRow, int fromCol, int toRow, int toCo
 }
 
 bool validateIfPieceCanMoveTo(int fromRow, int fromCol, int toRow, int toCol, bool player, char* error) {
-	int pieceOnFrom = board[fromRow][fromCol];
+	int pieceOnFrom = board[fromRow][fromCol][PIECE];
 
 	if (fromRow == toRow && fromCol == toCol) {
 		strcpy(error, "Invalid move. The 'from' and 'to' positions cannot be the same");
 		return false;
 	}
 
-	if (pieceOnFrom == EMPTY || pieceOnFrom == KING_GOAL) {
+	if (pieceOnFrom == EMPTY) {
 		strcpy(error, "Invalid move. The 'from' position is empty");
 		return false;
 	}
@@ -347,17 +360,17 @@ bool validateIfPieceCanMoveTo(int fromRow, int fromCol, int toRow, int toCol, bo
 		return false;
 	}
 
-	if (toRow == kingThroneRow && toCol == kingThroneCol && pieceOnFrom != KING) {
-		strcpy(error, "Invalid move. Only the king can move to the king's starting position");
+	if (board[toRow][toCol][SQUARE] == KING_THRONE && pieceOnFrom != KING) {
+		strcpy(error, "Invalid move. Only the king can move to the king's throne");
 		return false;
 	}
 
-	if (board[toRow][toCol] == KING_GOAL && pieceOnFrom != KING) {
+	if (board[toRow][toCol][SQUARE] == KING_GOAL && pieceOnFrom != KING) {
 		strcpy(error, "Invalid move. Only the king can move to the king's goal positions");
 		return false;
 	}
 
-	if (board[toRow][toCol] != EMPTY) {
+	if (board[toRow][toCol][PIECE] != EMPTY) {
 		strcpy(error, "Invalid move. The destination position is not empty");
 		return false;
 	}
@@ -492,9 +505,9 @@ bool canCaptureKing(int row, int col) {
 
 		if (isEdge) continue;
 
-		bool isAttacker = board[row + dRow][col + dCol] == ATTACKER;
-		bool isKingGoal = board[row + dRow][col + dCol] == KING_GOAL;
-		bool isKingThrone = row + dRow == kingThroneRow && col + dCol == kingThroneCol;
+		bool isAttacker = board[row + dRow][col + dCol][PIECE] == ATTACKER;
+		bool isKingGoal = board[row + dRow][col + dCol][SQUARE] == KING_GOAL;
+		bool isKingThrone = board[row + dRow][col + dCol][SQUARE] == KING_THRONE;
 
 		if (!(isAttacker || isKingGoal || isKingThrone)) return false;
 	}
@@ -510,18 +523,18 @@ bool canCapture(int row, int col, int dRow, int dCol) {
 
 	if (neighbourRow < 0 || neighbourRow >= boardSize || neighbourCol < 0 || neighbourCol >= boardSize) return false;
 
-	if (board[neighbourRow][neighbourCol] == EMPTY) return false;
+	if (board[neighbourRow][neighbourCol][PIECE] == EMPTY) return false;
 
-	if (board[neighbourRow][neighbourCol] == KING) return canCaptureKing(neighbourRow, neighbourCol);
+	if (board[neighbourRow][neighbourCol][PIECE] == KING) return canCaptureKing(neighbourRow, neighbourCol);
 
 	if (twoTileAwayRow < 0 || twoTileAwayRow >= boardSize || twoTileAwayCol < 0 || twoTileAwayCol >= boardSize) return false;
 
-	int twoTileAwaySquare = board[twoTileAwayRow][twoTileAwayCol];
-	int currentPiece = board[row][col];
+	int* twoTileAwayPosition = board[twoTileAwayRow][twoTileAwayCol];
+	int currentPiece = board[row][col][PIECE];
 
-	bool samePiece = (twoTileAwaySquare == currentPiece);
-	bool kingThrone = (twoTileAwayRow == kingThroneRow && twoTileAwayCol == kingThroneCol);
-	bool kingGoal = (twoTileAwaySquare == KING_GOAL);
+	bool samePiece = (twoTileAwayPosition[PIECE] == currentPiece);
+	bool kingThrone = (twoTileAwayPosition[SQUARE] == KING_THRONE);
+	bool kingGoal = (twoTileAwayPosition[SQUARE] == KING_GOAL);
 
 	return samePiece || kingThrone || kingGoal;
 }
@@ -553,8 +566,8 @@ void executeMoveCommand(char* command, char* infoMessage, bool& player) {
 	getNextMoveCommandCoordinates(fromRow, fromCol, command, infoMessage, i);
 	getNextMoveCommandCoordinates(toRow, toCol, command, infoMessage, i);
 
-	board[toRow][toCol] = board[fromRow][fromCol];
-	board[fromRow][fromCol] = EMPTY;
+	board[toRow][toCol][PIECE] = board[fromRow][fromCol][PIECE];
+	board[fromRow][fromCol][PIECE] = EMPTY;
 
 	const int directions[4][2] = {
 	    {0, -1}, // Left
@@ -583,7 +596,7 @@ void executeMoveCommand(char* command, char* infoMessage, bool& player) {
 			appendMoveInfo(infoMessage, captureRow, captureCol);
 			movesFile << (char)('a' + captureCol) << (captureRow + 1);
 
-			board[toRow + dRow][toCol + dCol] = EMPTY;
+			board[toRow + dRow][toCol + dCol][PIECE] = EMPTY;
 		}
 	}
 
@@ -612,8 +625,8 @@ void reverseMove(char* move, bool& player, char* infoMessage) {
 	getNextMoveFileCoordinates(fromRow, fromCol, move, i);
 	getNextMoveFileCoordinates(toRow, toCol, move, i);
 
-	board[fromRow][fromCol] = board[toRow][toCol];
-	board[toRow][toCol] = EMPTY;
+	board[fromRow][fromCol][PIECE] = board[toRow][toCol][PIECE];
+	board[toRow][toCol][PIECE] = EMPTY;
 
 	if (move[i] != 'x') {
 		player = !player;
@@ -626,7 +639,7 @@ void reverseMove(char* move, bool& player, char* infoMessage) {
 		int capturedCol, capturedRow;
 		getNextMoveFileCoordinates(capturedRow, capturedCol, move, i);
 
-		board[capturedRow][capturedCol] = (player ? DEFENDER : ATTACKER);
+		board[capturedRow][capturedCol][PIECE] = (player ? DEFENDER : ATTACKER);
 	}
 
 	player = !player;
@@ -634,6 +647,9 @@ void reverseMove(char* move, bool& player, char* infoMessage) {
 
 void executeBackCommand(char* command, char* infoMessage, bool& player) {
 	std::ifstream movesFile("moves.vch");
+
+	int stepsBack = 1;
+	getBackCommandParameter(command, infoMessage, stepsBack);
 
 	// From, to moves - max 6 characters
 	// x - 1 character
@@ -648,15 +664,17 @@ void executeBackCommand(char* command, char* infoMessage, bool& player) {
 
 	movesFile.close();
 
+	for (int i = 1; i <= stepsBack; ++i) {
+		reverseMove(moves[moveCount - i], player, infoMessage);
+	}
+
 	std::ofstream newMovesFile("moves.vch", std::ios::trunc);
 
-	for (int i = 0; i < moveCount - 1; ++i) {
+	for (int i = 0; i < moveCount - stepsBack; ++i) {
 		newMovesFile << moves[i] << std::endl;
 	}
 
 	newMovesFile.close();
-
-	reverseMove(moves[moveCount - 1], player, infoMessage);
 }
 
 void executeCommand(char* command, char* infoMessage, bool& player) {
@@ -677,21 +695,29 @@ void executeCommand(char* command, char* infoMessage, bool& player) {
 
 bool hasGameEnded() {
 	bool isKingAlive = false;
-	int attackerCount = 0;
-	int defenderCount = 0;
+	bool isKingOnGoal = false;
+	int attackerCount = 0, defenderCount = 0;
+
 	for (int i = 0; i < boardSize; ++i) {
 		for (int j = 0; j < boardSize; ++j) {
-			if (board[i][j] == ATTACKER) {
+			int piece = board[i][j][PIECE];
+			int square = board[i][j][SQUARE];
+
+			if (piece == ATTACKER) {
 				attackerCount++;
-			} else if (board[i][j] == DEFENDER) {
+			} else if (piece == DEFENDER) {
 				defenderCount++;
-			} else if (board[i][j] == KING) {
+			} else if (piece == KING) {
 				isKingAlive = true;
+				if (square == KING_GOAL) {
+					isKingOnGoal = true;
+				}
 			}
 		}
+		if (isKingOnGoal) break;
 	}
 
-	return (attackerCount == 0) || (!isKingAlive) || (defenderCount == 0 && !isKingAlive);
+	return (attackerCount == 0) || (!isKingAlive) || (defenderCount == 0 && !isKingAlive) || isKingOnGoal;
 }
 
 void playerMove(bool& player, char* infoMessage) {
