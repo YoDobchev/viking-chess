@@ -92,8 +92,19 @@ bool loadSkin() {
 	return true;
 }
 
-int totalAttackers, totalDefenders, totalKings;
+void freeBoard() {
+	if (!board) return;
+	for (int i = 0; i < boardSize; ++i) {
+		for (int j = 0; j < boardSize; ++j) {
+			delete[] board[i][j];
+		}
+		delete[] board[i];
+	}
+	delete[] board;
+	board = nullptr;
+}
 
+int totalAttackers, totalDefenders, totalKings;
 bool loadTable() {
 	std::ifstream file("./startingTables/test.vch");
 
@@ -161,14 +172,7 @@ bool loadTable() {
 			} else {
 				std::cerr << "Error: Unrecognized character '" << line[i] << "' at row " << row << ", col " << col << std::endl;
 				delete[] line;
-
-				for (int j = 0; j <= row; ++j) {
-					for (int k = 0; k < boardSize; ++k) {
-						delete[] board[j][k];
-					}
-					delete[] board[j];
-				}
-				delete[] board;
+				freeBoard();
 				return false;
 			}
 			col++;
@@ -177,13 +181,7 @@ bool loadTable() {
 		if (col != boardSize) {
 			std::cerr << "Error: Inconsistent number of columns at row " << row << std::endl;
 			delete[] line;
-			for (int j = 0; j <= row; ++j) {
-				for (int k = 0; k < boardSize; ++k) {
-					delete[] board[j][k];
-				}
-				delete[] board[j];
-			}
-			delete[] board;
+			freeBoard();
 			return false;
 		}
 		row++;
@@ -193,13 +191,13 @@ bool loadTable() {
 
 	if (row != boardSize) {
 		std::cerr << "Error: Inconsistent number of rows. Expected " << boardSize << ", got " << row << std::endl;
-		for (int j = 0; j <= row; ++j) {
-			for (int k = 0; k < boardSize; ++k) {
-				delete[] board[j][k];
-			}
-			delete[] board[j];
-		}
-		delete[] board;
+		freeBoard();
+		return false;
+	}
+
+	if (totalKings != 1) {
+		std::cerr << "Error: Expected 1 king, got " << totalKings << std::endl;
+		freeBoard();
 		return false;
 	}
 
@@ -866,13 +864,13 @@ void playerMove(bool& player, char* infoMessage) {
 	executeCommand(command, infoMessage, player);
 }
 
+void resetMovesFile() {
+	std::ofstream movesFile("moves.vch", std::ios::trunc);
+	movesFile.close();
+}
+
 void startGame() {
-	// std::ofstream file("moves.vch", std::ios::trunc);
-	// if (!file.is_open()) {
-	// 	std::cerr << "Error: Couldn't open moves.vch" << std::endl;
-	// 	return;
-	// }
-	// file.close();
+	resetMovesFile();
 	bool gameEnded = false;
 	bool currentTurn = PLAYER1;
 	char infoMessage[1024] = "";
@@ -906,6 +904,7 @@ int main() {
 		startGame();
 		break;
 	case 2:
+		freeBoard();
 		return 0;
 		break;
 	}
