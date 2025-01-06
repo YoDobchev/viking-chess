@@ -31,7 +31,13 @@ int charToInt(char c) {
 	return -1;
 }
 
-enum PositionType {
+void swapChars(char& a, char& b) {
+	char temp = a;
+	a = b;
+	b = temp;
+}
+
+enum PositionTypes {
 	PIECE,
 	SQUARE,
 };
@@ -86,6 +92,8 @@ bool loadSkin() {
 	return true;
 }
 
+int totalAttackers, totalDefenders, totalKings;
+
 bool loadTable() {
 	std::ifstream file("./startingTables/test.vch");
 
@@ -124,6 +132,9 @@ bool loadTable() {
 	file.clear();
 	file.seekg(0);
 
+	totalAttackers = 0;
+	totalDefenders = 0;
+	totalKings = 0;
 	int row = 0;
 	while (file.getline(line, MAX_BOARD_SIZE) && row < boardSize) {
 		int col = 0;
@@ -134,13 +145,16 @@ bool loadTable() {
 
 			if (line[i] == '*')
 				board[row][col][PIECE] = EMPTY;
-			else if (line[i] == 'A')
+			else if (line[i] == 'A') {
 				board[row][col][PIECE] = ATTACKER;
-			else if (line[i] == 'D')
+				totalAttackers++;
+			} else if (line[i] == 'D') {
 				board[row][col][PIECE] = DEFENDER;
-			else if (line[i] == 'K') {
+				totalDefenders++;
+			} else if (line[i] == 'K') {
 				board[row][col][PIECE] = KING;
 				board[row][col][SQUARE] = KING_THRONE;
+				totalKings++;
 			} else if (line[i] == 'X') {
 				board[row][col][PIECE] = EMPTY;
 				board[row][col][SQUARE] = KING_GOAL;
@@ -176,6 +190,19 @@ bool loadTable() {
 	}
 
 	delete[] line;
+
+	if (row != boardSize) {
+		std::cerr << "Error: Inconsistent number of rows. Expected " << boardSize << ", got " << row << std::endl;
+		for (int j = 0; j <= row; ++j) {
+			for (int k = 0; k < boardSize; ++k) {
+				delete[] board[j][k];
+			}
+			delete[] board[j];
+		}
+		delete[] board;
+		return false;
+	}
+
 	return true;
 }
 
@@ -480,12 +507,7 @@ bool isValidCommand(char* command, char* error, bool player) {
 	case BACK:
 		return validateBackCommand(command, error);
 		break;
-		// case INFO:
-		// 	return true;
-		// 	break;
-		// case HELP:
-		// 	return true;
-		// 	break;
+		// info and help are always valid
 	}
 
 	return true;
@@ -501,8 +523,8 @@ bool canCaptureKing(int row, int col) {
 
 	for (int i = 0; i < 4; ++i) {
 		int dRow = directions[i][0], dCol = directions[i][1];
-		bool isEdge = row + dRow < 0 || row + dRow >= boardSize || col + dCol < 0 || col + dCol >= boardSize;
 
+		bool isEdge = row + dRow < 0 || row + dRow >= boardSize || col + dCol < 0 || col + dCol >= boardSize;
 		if (isEdge) continue;
 
 		bool isAttacker = board[row + dRow][col + dCol][PIECE] == ATTACKER;
@@ -539,7 +561,7 @@ bool canCapture(int row, int col, int dRow, int dCol) {
 	return samePiece || kingThrone || kingGoal;
 }
 
-void appendMoveInfo(char* infoMessage, int row, int col) {
+void appendCaptureInfoToMessage(char* infoMessage, int row, int col) {
 	char colChar[2] = {(char)(col + 'a'), '\0'};
 	char rowChar[10];
 
@@ -552,7 +574,7 @@ void appendMoveInfo(char* infoMessage, int row, int col) {
 	rowChar[index] = '\0';
 
 	for (int i = 0; i < index / 2; ++i) {
-		std::swap(rowChar[i], rowChar[index - i - 1]);
+		swapChars(rowChar[i], rowChar[index - i - 1]);
 	}
 
 	strcat(infoMessage, colChar);
@@ -593,7 +615,7 @@ void executeMoveCommand(char* command, char* infoMessage, bool& player) {
 				atLeastOneCapture = true;
 			}
 
-			appendMoveInfo(infoMessage, captureRow, captureCol);
+			appendCaptureInfoToMessage(infoMessage, captureRow, captureCol);
 			movesFile << (char)('a' + captureCol) << (captureRow + 1);
 
 			board[toRow + dRow][toCol + dCol][PIECE] = EMPTY;
@@ -677,6 +699,108 @@ void executeBackCommand(char* command, char* infoMessage, bool& player) {
 	newMovesFile.close();
 }
 
+void appendMoveCountInfo(char* infoMessage) {
+	std::ifstream movesFile("moves.vch");
+
+	const int MAX_MOVE_LENGTH = 16;
+	char move[MAX_MOVE_LENGTH];
+	int moveCount = 0;
+	while (movesFile.getline(move, MAX_MOVE_LENGTH)) {
+		moveCount++;
+	}
+
+	movesFile.close();
+
+	std::cout << "Number of moves: " << moveCount << std::endl;
+
+	strcat(infoMessage, "Number of moves: ");
+	char moveCountChar[10];
+	int index = 0;
+	while (moveCount > 0) {
+		moveCountChar[index++] = (char)((moveCount % 10) + '0');
+		moveCount /= 10;
+	}
+	moveCountChar[index] = '\0';
+
+	for (int i = 0; i < index / 2; ++i) {
+		std::swap(moveCountChar[i], moveCountChar[index - i - 1]);
+	}
+
+	strcat(infoMessage, moveCountChar);
+}
+
+void appendPlayerTurnInfo(char* infoMessage, bool player) {
+	strcat(infoMessage, (player == PLAYER1) ? "Attacker's turn" : "Defender's turn");
+}
+
+void getPiecesCount(int& attackerCount, int& defenderCount, int& kingCount) {
+	attackerCount = 0;
+	defenderCount = 0;
+	kingCount = 0;
+
+	for (int i = 0; i < boardSize; ++i) {
+		for (int j = 0; j < boardSize; ++j) {
+			if (board[i][j][PIECE] == ATTACKER) {
+				attackerCount++;
+			} else if (board[i][j][PIECE] == DEFENDER) {
+				defenderCount++;
+			} else if (board[i][j][PIECE] == KING) {
+				kingCount++;
+			}
+		}
+	}
+}
+
+void intToStr(int num, char* str) {
+	int i = 0;
+	char temp[20];
+	if (num == 0) {
+		str[i++] = '0';
+	} else {
+		while (num > 0) {
+			temp[i++] = (num % 10) + '0';
+			num /= 10;
+		}
+	}
+	temp[i] = '\0';
+
+	int j;
+	for (j = 0; j < i; j++) {
+		str[j] = temp[i - j - 1];
+	}
+	str[j] = '\0';
+}
+
+void appendLeftPiecesInfo(char* infoMessage) {
+	strcat(infoMessage, "Pieces left: ");
+	int attackerCount, defenderCount, kingCount;
+	getPiecesCount(attackerCount, defenderCount, kingCount);
+
+	strcat(infoMessage, "Attackers: ");
+	char numStr[30];
+	intToStr(attackerCount, numStr);
+	strcat(infoMessage, numStr);
+	strcat(infoMessage, "/");
+	intToStr(totalAttackers, numStr);
+	strcat(infoMessage, numStr);
+
+	strcat(infoMessage, ", Defenders: ");
+	intToStr(defenderCount, numStr);
+	strcat(infoMessage, numStr);
+	strcat(infoMessage, "/");
+	intToStr(totalDefenders, numStr);
+	strcat(infoMessage, numStr);
+}
+
+void executeInfoCommand(char* infoMessage, bool player) {
+	strcat(infoMessage, "INFO: ");
+	appendPlayerTurnInfo(infoMessage, player);
+	strcat(infoMessage, " | ");
+	appendMoveCountInfo(infoMessage);
+	strcat(infoMessage, " | ");
+	appendLeftPiecesInfo(infoMessage);
+}
+
 void executeCommand(char* command, char* infoMessage, bool& player) {
 	int inputCommandType = getCommandType(command);
 	switch (inputCommandType) {
@@ -687,6 +811,7 @@ void executeCommand(char* command, char* infoMessage, bool& player) {
 		executeBackCommand(command, infoMessage, player);
 		break;
 	case INFO:
+		executeInfoCommand(infoMessage, player);
 		break;
 	case HELP:
 		break;
@@ -742,12 +867,12 @@ void playerMove(bool& player, char* infoMessage) {
 }
 
 void startGame() {
-	std::ofstream file("moves.vch", std::ios::trunc);
-	if (!file.is_open()) {
-		std::cerr << "Error: Couldn't open moves.vch" << std::endl;
-		return;
-	}
-	file.close();
+	// std::ofstream file("moves.vch", std::ios::trunc);
+	// if (!file.is_open()) {
+	// 	std::cerr << "Error: Couldn't open moves.vch" << std::endl;
+	// 	return;
+	// }
+	// file.close();
 	bool gameEnded = false;
 	bool currentTurn = PLAYER1;
 	char infoMessage[1024] = "";
