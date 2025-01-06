@@ -709,9 +709,11 @@ void appendMoveCountInfo(char* infoMessage) {
 
 	movesFile.close();
 
-	std::cout << "Number of moves: " << moveCount << std::endl;
-
 	strcat(infoMessage, "Number of moves: ");
+	if (moveCount == 0) {
+		strcat(infoMessage, "0");
+		return;
+	}
 	char moveCountChar[10];
 	int index = 0;
 	while (moveCount > 0) {
@@ -791,12 +793,13 @@ void appendLeftPiecesInfo(char* infoMessage) {
 }
 
 void executeInfoCommand(char* infoMessage, bool player) {
-	strcat(infoMessage, "INFO: ");
+	strcat(infoMessage, "Current game status: [");
 	appendPlayerTurnInfo(infoMessage, player);
 	strcat(infoMessage, " | ");
 	appendMoveCountInfo(infoMessage);
 	strcat(infoMessage, " | ");
 	appendLeftPiecesInfo(infoMessage);
+	strcat(infoMessage, "]");
 }
 
 void executeCommand(char* command, char* infoMessage, bool& player) {
@@ -812,6 +815,7 @@ void executeCommand(char* command, char* infoMessage, bool& player) {
 		executeInfoCommand(infoMessage, player);
 		break;
 	case HELP:
+		strcat(infoMessage, "Available commands: move <from> <to>, back <num>, info, help");
 		break;
 	}
 }
