@@ -37,6 +37,17 @@ void swapChars(char& a, char& b) {
 	b = temp;
 }
 
+void toLowerStr(char* str) {
+	if (str == nullptr) return;
+
+	while (*str) {
+		if (*str >= 'A' && *str <= 'Z') {
+			*str = *str + ('a' - 'A');
+		}
+		str++;
+	}
+}
+
 enum PositionTypes {
 	PIECE,
 	SQUARE,
@@ -64,10 +75,12 @@ const size_t TOTAL_SQUARES = 5;
 char squareChars[TOTAL_SQUARES];
 
 int*** board;
-int boardSize = 0;
-
-bool loadSkin() {
-	std::ifstream file("./pieceSkins/default.vch");
+int boardSize;
+bool loadSkin(const char* skin) {
+	char filePath[256] = "./pieceSkins/";
+	strcat(filePath, skin);
+	strcat(filePath, ".vch");
+	std::ifstream file(filePath);
 
 	if (!file.is_open()) {
 		std::cerr << "Error: Couldn't open skin" << std::endl;
@@ -105,8 +118,11 @@ void freeBoard() {
 }
 
 int totalAttackers, totalDefenders, totalKings;
-bool loadTable() {
-	std::ifstream file("./startingTables/test.vch");
+bool loadTable(const char* table) {
+	char filePath[256] = "./startingTables/";
+	strcat(filePath, table);
+	strcat(filePath, ".vch");
+	std::ifstream file(filePath);
 
 	if (!file.is_open()) {
 		std::cerr << "Error: Couldn't open table file" << std::endl;
@@ -115,13 +131,13 @@ bool loadTable() {
 
 	const int MAX_BOARD_SIZE = 256;
 	char* line = new char[MAX_BOARD_SIZE];
-
 	if (!file.getline(line, MAX_BOARD_SIZE)) {
 		std::cerr << "Error: File is empty" << std::endl;
 		delete[] line;
 		return false;
 	}
 
+	boardSize = 0;
 	size_t len = strlen(line);
 	for (size_t i = 0; i < len; ++i) {
 		if (line[i] != ' ') {
@@ -205,7 +221,7 @@ bool loadTable() {
 }
 
 void printTable() {
-	// clearTerminal();
+	clearTerminal();
 
 	int rowHelper = 1;
 	char columnHelper = 'a';
@@ -239,13 +255,22 @@ int multipleChoice(const char* choices[], int numChoices) {
 		std::cout << "[" << i + 1 << "]: " << choices[i] << std::endl;
 	}
 
+	bool validChoice = false;
 	int choice = 0;
-	do {
+
+	while (!validChoice) {
 		std::cout << "Choice: ";
 		std::cin >> choice;
-	} while (choice <= 0 || choice > numChoices);
 
-	std::cin.ignore();
+		if (std::cin.fail() || choice <= 0 || choice > numChoices) {
+			std::cin.clear();
+			std::cin.ignore(10000, '\n');
+			std::cout << "Invalid choice, please enter a number between 1 and " << numChoices << "." << std::endl;
+		} else {
+			std::cin.ignore(10000, '\n');
+			validChoice = true;
+		}
+	}
 	return choice;
 }
 
@@ -257,21 +282,22 @@ enum CommandTypes {
 };
 
 int getCommandType(char* command) {
-	char commandTypeString[1024];
+	char commandTypeStr[1024];
 	int i = 0;
 	while (command[i] != ' ' && command[i] != '\0') {
-		commandTypeString[i] = command[i];
+		commandTypeStr[i] = command[i];
 		i++;
 	}
-	commandTypeString[i] = '\0';
+	commandTypeStr[i] = '\0';
+	toLowerStr(commandTypeStr);
 
-	if (strcmp(commandTypeString, "move") == 0) {
+	if (strcmp(commandTypeStr, "move") == 0) {
 		return MOVE;
-	} else if (strcmp(commandTypeString, "back") == 0) {
+	} else if (strcmp(commandTypeStr, "back") == 0) {
 		return BACK;
-	} else if (strcmp(commandTypeString, "info") == 0) {
+	} else if (strcmp(commandTypeStr, "info") == 0) {
 		return INFO;
-	} else if (strcmp(commandTypeString, "help") == 0) {
+	} else if (strcmp(commandTypeStr, "help") == 0) {
 		return HELP;
 	} else {
 		return -1;
@@ -462,7 +488,6 @@ bool validateBackCommand(char* command, char* error) {
 	std::ifstream movesFile("moves.vch");
 
 	int stepsBack = 1;
-
 	if (!getBackCommandParameter(command, error, stepsBack)) return false;
 
 	int recordedMovesCount = 0;
@@ -608,14 +633,12 @@ void executeMoveCommand(char* command, char* infoMessage, bool& player) {
 		if (canCapture(toRow, toCol, dRow, dCol)) {
 			if (!atLeastOneCapture) {
 				strcat(infoMessage, (player == PLAYER1) ? "Attacker captured: " : "Defender captured: ");
-
 				movesFile << 'x';
 				atLeastOneCapture = true;
 			}
 
 			appendCaptureInfoToMessage(infoMessage, captureRow, captureCol);
 			movesFile << (char)('a' + captureCol) << (captureRow + 1);
-
 			board[toRow + dRow][toCol + dCol][PIECE] = EMPTY;
 		}
 	}
@@ -868,13 +891,19 @@ void playerMove(bool& player, char* infoMessage) {
 	executeCommand(command, infoMessage, player);
 }
 
-void resetMovesFile() {
+bool clearMovesFile() {
 	std::ofstream movesFile("moves.vch", std::ios::trunc);
+	if (!movesFile.is_open()) {
+		std::cerr << "Error: Couldn't open moves file" << std::endl;
+		return false;
+	}
 	movesFile.close();
+	return true;
 }
 
 void startGame() {
-	resetMovesFile();
+	clearMovesFile();
+
 	bool gameEnded = false;
 	bool currentTurn = PLAYER1;
 	char infoMessage[1024] = "";
@@ -890,28 +919,98 @@ void startGame() {
 	std::cout << "Game ended" << std::endl;
 }
 
-int main() {
+char* inputFilePath(const char* startingPath, const char* message) {
+	char* filePath = new char[256];
+	char* chosenFile = new char[256];
+	do {
+		std::cout << message;
+		std::cin.getline(chosenFile, 256);
+		strcpy(filePath, startingPath);
+		strcat(filePath, chosenFile);
+		strcat(filePath, ".vch");
+		std::ifstream file(filePath);
+		if (!file.is_open()) {
+			std::cerr << "Error: Couldn't open file inside " << startingPath << ". Please check if the file exists and try again."
+			          << std::endl;
+			chosenFile[0] = '\0';
+		} else {
+			file.close();
+		}
+	} while (strlen(chosenFile) == 0);
+	return chosenFile;
+}
 
-	if (!loadSkin()) return -1;
+void chooseTable() {
+	clearTerminal();
+	std::cout << "~Table Selection~" << std::endl;
+	const char* choices[] = {"9x9", "11x11", "Input your own"};
+	int choice = multipleChoice(choices, 3);
+	if (choice == 3) {
+		char* chosenTable = inputFilePath("./startingTables/", "Enter only the name (without .vch) of your table file: ");
+		loadTable(chosenTable);
+		delete[] chosenTable;
+		return;
+	}
 
-	if (!loadTable()) return -1;
+	char chosenTable[50];
+	strcpy(chosenTable, choices[choice - 1]);
+	toLowerStr(chosenTable);
 
-	// std::cout << "Main menu:"
-	//           << "[1] "
-	startGame();
+	std::cout << chosenTable << std::endl;
+	loadTable(chosenTable);
+}
 
-	const char* choices[] = {"New game", "Quit"};
-	std::cout << "Main menu" << std::endl;
-	int choice = multipleChoice(choices, 2);
+void chooseSkin() {
+	clearTerminal();
+	std::cout << "~Skin Selection~" << std::endl;
+	const char* choices[] = {"Default", "Minimalistic", "Input your own"};
+	int choice = multipleChoice(choices, 3);
+	if (choice == 3) {
+		char* chosenSkin = inputFilePath("./pieceSkins/", "Enter only the name (without .vch) of your skin file: ");
+		loadSkin(chosenSkin);
+		delete[] chosenSkin;
+		return;
+	}
+
+	char chosenSkin[50];
+	strcpy(chosenSkin, choices[choice - 1]);
+	toLowerStr(chosenSkin);
+
+	std::cout << chosenSkin << std::endl;
+	loadSkin(chosenSkin);
+}
+
+void MainMenu() {
+	clearTerminal();
+	std::cout << "~Main Menu~" << std::endl;
+	const char* choices[] = {"New game", "Select Table", "Select Skin", "Quit"};
+	int choice = multipleChoice(choices, 4);
 	switch (choice) {
 	case 1:
 		startGame();
 		break;
 	case 2:
+		chooseTable();
+		break;
+	case 3:
+		chooseSkin();
+		break;
+	case 4:
 		freeBoard();
-		return 0;
+		return;
 		break;
 	}
 
+	MainMenu();
+}
+
+void VikingChess() {
+	if (!loadSkin("default")) return;
+	if (!loadTable("test")) return;
+	MainMenu();
+}
+
+int main() {
+	VikingChess();
 	return 0;
 }
