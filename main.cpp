@@ -844,10 +844,10 @@ void appendLeftPiecesInfo(char* infoMessage) {
 	strcat(infoMessage, numStr);
 
 	strcat(infoMessage, ", Defenders: ");
-	intToStr(defenderCount, numStr);
+	intToStr(defenderCount + kingCount, numStr);
 	strcat(infoMessage, numStr);
 	strcat(infoMessage, "/");
-	intToStr(totalDefenders, numStr);
+	intToStr(totalDefenders + totalKings, numStr);
 	strcat(infoMessage, numStr);
 }
 
