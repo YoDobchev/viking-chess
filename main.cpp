@@ -126,7 +126,6 @@ bool loadSkin(const char* skin) {
 
 	char c;
 	int index = 0;
-
 	while (file.get(c) && index < TOTAL_SQUARES) {
 		squareChars[index] = c;
 		index++;
@@ -985,38 +984,38 @@ void chooseTable() {
 	clearTerminal();
 	std::cout << "~Table Selection~" << std::endl;
 	const char* choices[] = {"9x9", "11x11", "Input your own"};
-	int choice = multipleChoice(choices, 3);
-	if (choice == 3) {
-		char* chosenTable = inputFilePath("./startingTables/", "Enter only the name (without .vch) of your table file: ");
-		loadTable(chosenTable);
-		delete[] chosenTable;
-		return;
-	}
-
 	char chosenTable[50];
-	strcpy(chosenTable, choices[choice - 1]);
-	toLowerStr(chosenTable);
-
-	loadTable(chosenTable);
+	int choice;
+	do {
+		choice = multipleChoice(choices, 3);
+		if (choice == 3) {
+			do {
+				strcpy(chosenTable, inputFilePath("./startingTables/", "Enter only the name (without .vch) of your table file: "));
+			} while (!loadTable(chosenTable));
+			return;
+		}
+		strcpy(chosenTable, choices[choice - 1]);
+		toLowerStr(chosenTable);
+	} while (!loadTable(chosenTable));
 }
 
 void chooseSkin() {
 	clearTerminal();
 	std::cout << "~Skin Selection~" << std::endl;
 	const char* choices[] = {"Default", "Minimalistic", "Input your own"};
-	int choice = multipleChoice(choices, 3);
-	if (choice == 3) {
-		char* chosenSkin = inputFilePath("./pieceSkins/", "Enter only the name (without .vch) of your skin file: ");
-		loadSkin(chosenSkin);
-		delete[] chosenSkin;
-		return;
-	}
-
 	char chosenSkin[50];
-	strcpy(chosenSkin, choices[choice - 1]);
-	toLowerStr(chosenSkin);
-
-	loadSkin(chosenSkin);
+	int choice;
+	do {
+		choice = multipleChoice(choices, 3);
+		if (choice == 3) {
+			do {
+				strcpy(chosenSkin, inputFilePath("./pieceSkins/", "Enter only the name (without .vch) of your skin file: "));
+			} while (!loadSkin(chosenSkin));
+			return;
+		}
+		strcpy(chosenSkin, choices[choice - 1]);
+		toLowerStr(chosenSkin);
+	} while (!loadSkin(chosenSkin));
 }
 
 void MainMenu() {
