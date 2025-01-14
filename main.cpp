@@ -48,6 +48,43 @@ void toLowerStr(char* str) {
 	}
 }
 
+char* strcpy(char* destination, const char* source) {
+	char* ptr = destination;
+	while (*source != '\0') {
+		*ptr = *source;
+		ptr++;
+		source++;
+	}
+	*ptr = '\0';
+	return destination;
+}
+
+char* strcat(char* destination, const char* source) {
+	char* ptr = destination;
+
+	while (*ptr != '\0') {
+		ptr++;
+	}
+
+	while (*source != '\0') {
+		*ptr = *source;
+		ptr++;
+		source++;
+	}
+
+	*ptr = '\0';
+	return destination;
+}
+
+int strcmp(const char* str1, const char* str2) {
+	while (*str1 != '\0' && *str2 != '\0' && *str1 == *str2) {
+		str1++;
+		str2++;
+	}
+
+	return *str1 - *str2;
+}
+
 enum PositionTypes {
 	PIECE,
 	SQUARE,
@@ -956,7 +993,6 @@ void chooseTable() {
 	strcpy(chosenTable, choices[choice - 1]);
 	toLowerStr(chosenTable);
 
-	std::cout << chosenTable << std::endl;
 	loadTable(chosenTable);
 }
 
@@ -976,7 +1012,6 @@ void chooseSkin() {
 	strcpy(chosenSkin, choices[choice - 1]);
 	toLowerStr(chosenSkin);
 
-	std::cout << chosenSkin << std::endl;
 	loadSkin(chosenSkin);
 }
 
