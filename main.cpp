@@ -769,7 +769,7 @@ void appendMoveCountInfo(char* infoMessage) {
 
 	movesFile.close();
 
-	strcat(infoMessage, "Number of moves: ");
+	strcat(infoMessage, "Number of moves so far: ");
 	if (moveCount == 0) {
 		strcat(infoMessage, "0");
 		return;
@@ -875,7 +875,11 @@ void executeCommand(char* command, char* infoMessage, bool& player) {
 		executeInfoCommand(infoMessage, player);
 		break;
 	case HELP:
-		strcat(infoMessage, "Available commands: move <from> <to>, back <num>, info, help");
+		strcat(infoMessage, "Available commands:\n");
+		strcat(infoMessage, "  move <from> <to> - Moves a piece from one position to another.\n");
+		strcat(infoMessage, "  back <num> - Reverts the game state by a specified number of moves.\n");
+		strcat(infoMessage, "  info - Displays current game information.\n");
+		strcat(infoMessage, "  help - Displays a list of available commands.");
 		break;
 	}
 }
