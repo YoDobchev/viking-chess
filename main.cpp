@@ -941,7 +941,11 @@ bool clearMovesFile() {
 	return true;
 }
 
-void startGame() {
+void startGame(char* table) {
+	std::cout << table << std::endl;
+	const char* tableToLoad = (strcmp(table, "") == 0) ? "test" : table;
+	if (!loadTable(tableToLoad)) return;
+
 	clearMovesFile();
 
 	bool gameEnded = false;
@@ -955,8 +959,10 @@ void startGame() {
 	}
 
 	printTable();
+	std::cout << "~Game ended~" << std::endl;
 	std::cout << infoMessage << std::endl;
-	std::cout << "Game ended" << std::endl;
+	std::cout << "Press Enter to continue...";
+	std::cin.get();
 }
 
 char* inputFilePath(const char* startingPath, const char* message) {
@@ -980,11 +986,10 @@ char* inputFilePath(const char* startingPath, const char* message) {
 	return chosenFile;
 }
 
-void chooseTable() {
+void chooseTable(char* chosenTable) {
 	clearTerminal();
 	std::cout << "~Table Selection~" << std::endl;
 	const char* choices[] = {"9x9", "11x11", "Input your own"};
-	char chosenTable[50];
 	int choice;
 	do {
 		choice = multipleChoice(choices, 3);
@@ -1019,32 +1024,34 @@ void chooseSkin() {
 }
 
 void MainMenu() {
-	clearTerminal();
-	std::cout << "~Main Menu~" << std::endl;
-	const char* choices[] = {"New game", "Select Table", "Select Skin", "Quit"};
-	int choice = multipleChoice(choices, 4);
-	switch (choice) {
-	case 1:
-		startGame();
-		break;
-	case 2:
-		chooseTable();
-		break;
-	case 3:
-		chooseSkin();
-		break;
-	case 4:
-		freeBoard();
-		return;
-		break;
-	}
+	bool quit = false;
+	char chosenTable[50] = {0};
 
-	MainMenu();
+	while (!quit) {
+		clearTerminal();
+		std::cout << "~Main Menu~" << std::endl;
+		const char* choices[] = {"New game", "Select Table", "Select Skin", "Quit"};
+		int choice = multipleChoice(choices, 4);
+		switch (choice) {
+		case 1:
+			startGame(chosenTable);
+			break;
+		case 2:
+			chooseTable(chosenTable);
+			break;
+		case 3:
+			chooseSkin();
+			break;
+		case 4:
+			freeBoard();
+			quit = true;
+			return;
+		}
+	}
 }
 
 void VikingChess() {
 	if (!loadSkin("default")) return;
-	if (!loadTable("test")) return;
 	MainMenu();
 }
 
