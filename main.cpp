@@ -1013,11 +1013,12 @@ int multipleChoice(const char* choices[], int numChoices) {
 void chooseTable(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, char* chosenTable) {
 	clearTerminal();
 	std::cout << "~Table Selection~" << std::endl;
-	const char* choices[] = {"9x9", "11x11", "Input your own"};
+	const char* choices[] = {"7x7", "9x9", "11x11", "13x13", "Alea-Evangelii", "Ealdfaeder", "Input your own"};
+	const int CHOISES_COUNT = 7;
 	int choice;
 	do {
-		choice = multipleChoice(choices, 3);
-		if (choice == 3) {
+		choice = multipleChoice(choices, CHOISES_COUNT);
+		if (choice == CHOISES_COUNT) {
 			do {
 				strcpy(chosenTable, inputFilePath("./startingTables/", "Enter only the name (without .vch) of your table file: "));
 			} while (!loadTable(board, boardSize, totalAttackers, totalDefenders, chosenTable));
@@ -1031,12 +1032,14 @@ void chooseTable(int***& board, int& boardSize, int& totalAttackers, int& totalD
 void chooseSkin(char*& squareChars) {
 	clearTerminal();
 	std::cout << "~Skin Selection~" << std::endl;
-	const char* choices[] = {"Default", "Minimalistic", "Input your own"};
+	const char* choices[] = {"Alphabet",       "Default", "Frost",   "Matrix",        "Minimalistic",
+	                         "Nordic-Minimal", "Runic",   "valhala", "Input your own"};
 	char chosenSkin[STR_MAX_LENGTH];
+	const int CHOISES_COUNT = 9;
 	int choice;
 	do {
-		choice = multipleChoice(choices, 3);
-		if (choice == 3) {
+		choice = multipleChoice(choices, CHOISES_COUNT);
+		if (choice == CHOISES_COUNT) {
 			do {
 				strcpy(chosenSkin, inputFilePath("./pieceSkins/", "Enter only the name (without .vch) of your skin file: "));
 			} while (!loadSkin(chosenSkin, squareChars));
