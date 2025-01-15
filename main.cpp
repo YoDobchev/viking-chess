@@ -110,6 +110,14 @@ enum Players {
 	PLAYER2,
 };
 
+enum CommandTypes {
+	MOVE,
+	BACK,
+	INFO,
+	HELP,
+	QUIT,
+};
+
 const size_t TOTAL_SQUARES = 5;
 const size_t STR_MAX_LENGTH = 512;
 const size_t NUM_STR_MAX_LENGTH = 10;
@@ -154,9 +162,9 @@ void freeBoard(int***& board, int& boardSize) {
 	board = nullptr;
 }
 
-bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, const char* table) {
+bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, const char* tableToLoad) {
 	char filePath[STR_MAX_LENGTH] = "./startingTables/";
-	strcat(filePath, table);
+	strcat(filePath, tableToLoad);
 	strcat(filePath, ".vch");
 	std::ifstream file(filePath);
 
@@ -255,69 +263,6 @@ bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDef
 
 	return true;
 }
-
-void printTable(int*** board, int boardSize, const char* squareChars) {
-	clearTerminal();
-
-	int rowHelper = 1;
-	char columnHelper = 'a';
-
-	for (int i = 0; i < boardSize; ++i) {
-		std::cout << columnHelper++ << ' ';
-	}
-	std::cout << std::endl;
-
-	for (int i = 0; i < boardSize; ++i) {
-		std::cout << "_ ";
-	}
-	std::cout << std::endl;
-	for (int i = 0; i < boardSize; ++i) {
-		for (int j = 0; j < boardSize; ++j) {
-			if (board[i][j][PIECE] == EMPTY && (board[i][j][SQUARE] == KING_GOAL || board[i][j][SQUARE] == KING_THRONE)) {
-				const int INDEX_FOR_THRONE_AND_GOAL = 4;
-				std::cout << squareChars[INDEX_FOR_THRONE_AND_GOAL];
-			} else {
-				std::cout << squareChars[board[i][j][PIECE]];
-			}
-			if (j != boardSize - 1) std::cout << ' ';
-		}
-		std::cout << "| " << rowHelper++;
-		std::cout << std::endl;
-	}
-}
-
-int multipleChoice(const char* choices[], int numChoices) {
-	for (int i = 0; i < numChoices; ++i) {
-		std::cout << "[" << i + 1 << "]: " << choices[i] << std::endl;
-	}
-
-	bool validChoice = false;
-	int choice = 0;
-	const int IGNORE_CHARS = 10000;
-
-	while (!validChoice) {
-		std::cout << "Choice: ";
-		std::cin >> choice;
-
-		if (std::cin.fail() || choice <= 0 || choice > numChoices) {
-			std::cin.clear();
-			std::cin.ignore(IGNORE_CHARS, '\n');
-			std::cout << "Invalid choice, please enter a number between 1 and " << numChoices << "." << std::endl;
-		} else {
-			std::cin.ignore(IGNORE_CHARS, '\n');
-			validChoice = true;
-		}
-	}
-	return choice;
-}
-
-enum CommandTypes {
-	MOVE,
-	BACK,
-	INFO,
-	HELP,
-	QUIT,
-};
 
 int getCommandType(char* command) {
 	char commandTypeStr[STR_MAX_LENGTH];
@@ -923,6 +868,36 @@ bool hasGameEnded(int*** board, int boardSize) {
 	return (attackerCount == 0) || (!isKingAlive) || (defenderCount == 0 && !isKingAlive) || isKingOnGoal;
 }
 
+void printTable(int*** board, int boardSize, const char* squareChars) {
+	clearTerminal();
+
+	int rowHelper = 1;
+	char columnHelper = 'a';
+
+	for (int i = 0; i < boardSize; ++i) {
+		std::cout << columnHelper++ << ' ';
+	}
+	std::cout << std::endl;
+
+	for (int i = 0; i < boardSize; ++i) {
+		std::cout << "_ ";
+	}
+	std::cout << std::endl;
+	for (int i = 0; i < boardSize; ++i) {
+		for (int j = 0; j < boardSize; ++j) {
+			if (board[i][j][PIECE] == EMPTY && (board[i][j][SQUARE] == KING_GOAL || board[i][j][SQUARE] == KING_THRONE)) {
+				const int INDEX_FOR_THRONE_AND_GOAL = 4;
+				std::cout << squareChars[INDEX_FOR_THRONE_AND_GOAL];
+			} else {
+				std::cout << squareChars[board[i][j][PIECE]];
+			}
+			if (j != boardSize - 1) std::cout << ' ';
+		}
+		std::cout << "| " << rowHelper++;
+		std::cout << std::endl;
+	}
+}
+
 void playerMove(int*** board, int boardSize, int& totalAttackers, int& totalDefenders, char* squareChars, bool& player, char* infoMessage,
                 bool& gameEnded) {
 	char command[STR_MAX_LENGTH];
@@ -1000,6 +975,31 @@ char* inputFilePath(const char* startingPath, const char* message) {
 		}
 	} while (strlen(chosenFile) == 0);
 	return chosenFile;
+}
+
+int multipleChoice(const char* choices[], int numChoices) {
+	for (int i = 0; i < numChoices; ++i) {
+		std::cout << "[" << i + 1 << "]: " << choices[i] << std::endl;
+	}
+
+	bool validChoice = false;
+	int choice = 0;
+	const int IGNORE_CHARS = 10000;
+
+	while (!validChoice) {
+		std::cout << "Choice: ";
+		std::cin >> choice;
+
+		if (std::cin.fail() || choice <= 0 || choice > numChoices) {
+			std::cin.clear();
+			std::cin.ignore(IGNORE_CHARS, '\n');
+			std::cout << "Invalid choice, please enter a number between 1 and " << numChoices << "." << std::endl;
+		} else {
+			std::cin.ignore(IGNORE_CHARS, '\n');
+			validChoice = true;
+		}
+	}
+	return choice;
 }
 
 void chooseTable(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, char* chosenTable) {
