@@ -47,8 +47,8 @@ void toLowerStr(char* str) {
 		str++;
 	}
 }
-
 char* strcpy(char* destination, const char* source) {
+	if (destination == nullptr || source == nullptr) return nullptr;
 	char* ptr = destination;
 	while (*source != '\0') {
 		*ptr = *source;
@@ -60,6 +60,7 @@ char* strcpy(char* destination, const char* source) {
 }
 
 char* strcat(char* destination, const char* source) {
+	if (destination == nullptr || source == nullptr) return nullptr;
 	char* ptr = destination;
 
 	while (*ptr != '\0') {
@@ -77,6 +78,7 @@ char* strcat(char* destination, const char* source) {
 }
 
 int strcmp(const char* str1, const char* str2) {
+	if (str1 == nullptr || str2 == nullptr) return -1;
 	while (*str1 != '\0' && *str2 != '\0' && *str1 == *str2) {
 		str1++;
 		str2++;
@@ -315,6 +317,7 @@ enum CommandTypes {
 	BACK,
 	INFO,
 	HELP,
+	QUIT,
 };
 
 int getCommandType(char* command) {
@@ -325,7 +328,6 @@ int getCommandType(char* command) {
 		i++;
 	}
 	commandTypeStr[i] = '\0';
-	toLowerStr(commandTypeStr);
 
 	if (strcmp(commandTypeStr, "move") == 0) {
 		return MOVE;
@@ -335,6 +337,8 @@ int getCommandType(char* command) {
 		return INFO;
 	} else if (strcmp(commandTypeStr, "help") == 0) {
 		return HELP;
+	} else if (strcmp(commandTypeStr, "quit") == 0) {
+		return QUIT;
 	} else {
 		return -1;
 	}
@@ -552,10 +556,12 @@ bool isValidCommand(char* command, char* error, bool player) {
 		return false;
 	}
 
+	toLowerStr(command);
+
 	int inputCommandType = getCommandType(command);
 
 	if (inputCommandType == -1) {
-		strcpy(error, "Input command not recognized. Use 'move <from> <to>', 'back <num>', 'info' or 'help'");
+		strcpy(error, "Input command not recognized. Use 'move <from> <to>', 'back <num>', 'info', 'help' or 'quit'");
 		return false;
 	}
 
@@ -566,7 +572,7 @@ bool isValidCommand(char* command, char* error, bool player) {
 	case BACK:
 		return validateBackCommand(command, error);
 		break;
-		// info and help are always valid
+		// info, help and quit are always valid
 	}
 
 	return true;
@@ -861,7 +867,7 @@ void executeInfoCommand(char* infoMessage, bool player) {
 	strcat(infoMessage, "]");
 }
 
-void executeCommand(char* command, char* infoMessage, bool& player) {
+void executeCommand(char* command, char* infoMessage, bool& player, bool& gameEnded) {
 	int inputCommandType = getCommandType(command);
 	switch (inputCommandType) {
 	case MOVE:
@@ -878,7 +884,11 @@ void executeCommand(char* command, char* infoMessage, bool& player) {
 		strcat(infoMessage, "  move <from> <to> - Moves a piece from one position to another.\n");
 		strcat(infoMessage, "  back <num> - Reverts the game state by a specified number of moves.\n");
 		strcat(infoMessage, "  info - Displays current game information.\n");
-		strcat(infoMessage, "  help - Displays a list of available commands.");
+		strcat(infoMessage, "  help - Displays a list of available commands.\n");
+		strcat(infoMessage, "  quit - Quits the game to the main menu.");
+		break;
+	case QUIT:
+		gameEnded = true;
 		break;
 	}
 }
@@ -910,7 +920,7 @@ bool hasGameEnded() {
 	return (attackerCount == 0) || (!isKingAlive) || (defenderCount == 0 && !isKingAlive) || isKingOnGoal;
 }
 
-void playerMove(bool& player, char* infoMessage) {
+void playerMove(bool& player, char* infoMessage, bool& gameEnded) {
 	char command[1024];
 
 	char error[1024] = "";
@@ -928,7 +938,7 @@ void playerMove(bool& player, char* infoMessage) {
 		std::cin.getline(command, 1024);
 	} while (!isValidCommand(command, error, player));
 
-	executeCommand(command, infoMessage, player);
+	executeCommand(command, infoMessage, player, gameEnded);
 }
 
 bool clearMovesFile() {
@@ -953,9 +963,9 @@ void startGame(char* table) {
 	char infoMessage[1024] = "";
 
 	while (!gameEnded) {
-		playerMove(currentTurn, infoMessage);
+		playerMove(currentTurn, infoMessage, gameEnded);
 
-		gameEnded = hasGameEnded();
+		if (hasGameEnded()) gameEnded = true;
 	}
 
 	printTable();
