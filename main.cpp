@@ -111,11 +111,8 @@ enum Players {
 };
 
 const size_t TOTAL_SQUARES = 5;
-char squareChars[TOTAL_SQUARES];
 
-int*** board;
-int boardSize;
-bool loadSkin(const char* skin) {
+bool loadSkin(const char* skin, char squareChars[TOTAL_SQUARES]) {
 	char filePath[256] = "./pieceSkins/";
 	strcat(filePath, skin);
 	strcat(filePath, ".vch");
@@ -143,7 +140,7 @@ bool loadSkin(const char* skin) {
 	return true;
 }
 
-void freeBoard() {
+void freeBoard(int***& board, int& boardSize) {
 	if (!board) return;
 	for (int i = 0; i < boardSize; ++i) {
 		for (int j = 0; j < boardSize; ++j) {
@@ -155,8 +152,7 @@ void freeBoard() {
 	board = nullptr;
 }
 
-int totalAttackers, totalDefenders, totalKings;
-bool loadTable(const char* table) {
+bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, const char* table) {
 	char filePath[256] = "./startingTables/";
 	strcat(filePath, table);
 	strcat(filePath, ".vch");
@@ -199,7 +195,7 @@ bool loadTable(const char* table) {
 
 	totalAttackers = 0;
 	totalDefenders = 0;
-	totalKings = 0;
+	int totalKings = 0;
 	int row = 0;
 	while (file.getline(line, MAX_BOARD_SIZE) && row < boardSize) {
 		int col = 0;
@@ -226,7 +222,7 @@ bool loadTable(const char* table) {
 			} else {
 				std::cerr << "Error: Unrecognized character '" << line[i] << "' at row " << row << ", col " << col << std::endl;
 				delete[] line;
-				freeBoard();
+				freeBoard(board, boardSize);
 				return false;
 			}
 			col++;
@@ -235,7 +231,7 @@ bool loadTable(const char* table) {
 		if (col != boardSize) {
 			std::cerr << "Error: Inconsistent number of columns at row " << row << std::endl;
 			delete[] line;
-			freeBoard();
+			freeBoard(board, boardSize);
 			return false;
 		}
 		row++;
@@ -245,20 +241,20 @@ bool loadTable(const char* table) {
 
 	if (row != boardSize) {
 		std::cerr << "Error: Inconsistent number of rows. Expected " << boardSize << ", got " << row << std::endl;
-		freeBoard();
+		freeBoard(board, boardSize);
 		return false;
 	}
 
 	if (totalKings != 1) {
 		std::cerr << "Error: Expected 1 king, got " << totalKings << std::endl;
-		freeBoard();
+		freeBoard(board, boardSize);
 		return false;
 	}
 
 	return true;
 }
 
-void printTable() {
+void printTable(int*** board, int boardSize, const char* squareChars) {
 	clearTerminal();
 
 	int rowHelper = 1;
@@ -372,7 +368,7 @@ bool getNextMoveCommandCoordinates(int& row, int& col, char* command, char* erro
 	return true;
 }
 
-bool validatePositionBounds(int fromRow, int fromCol, int toRow, int toColumn, char* command, char* error) {
+bool validatePositionBounds(int boardSize, int fromRow, int fromCol, int toRow, int toColumn, char* command, char* error) {
 	if (fromRow < 0 || fromRow >= boardSize || fromCol < 0 || fromCol >= boardSize) {
 		strcpy(error, "Invalid 'from' position. The position must be within the board");
 		return false;
@@ -386,7 +382,7 @@ bool validatePositionBounds(int fromRow, int fromCol, int toRow, int toColumn, c
 	return true;
 }
 
-bool validateIfPieceCanMoveThrough(int fromRow, int fromCol, int toRow, int toCol, char* error) {
+bool validateIfPieceCanMoveThrough(int*** board, int fromRow, int fromCol, int toRow, int toCol, char* error) {
 	enum Movement {
 		VERTICAL,
 		HORIZONTAL,
@@ -428,7 +424,7 @@ bool validateIfPieceCanMoveThrough(int fromRow, int fromCol, int toRow, int toCo
 	return true;
 }
 
-bool validateIfPieceCanMoveTo(int fromRow, int fromCol, int toRow, int toCol, bool player, char* error) {
+bool validateIfPieceCanMoveTo(int*** board, int fromRow, int fromCol, int toRow, int toCol, bool player, char* error) {
 	int pieceOnFrom = board[fromRow][fromCol][PIECE];
 
 	if (fromRow == toRow && fromCol == toCol) {
@@ -479,7 +475,7 @@ bool canOpenMoveFile(char* error) {
 	return true;
 }
 
-bool validateMoveCommand(char* command, char* error, bool player) {
+bool validateMoveCommand(int*** board, int boardSize, char* command, char* error, bool player) {
 	if (!canOpenMoveFile(error)) return false;
 
 	int fromRow, fromCol, toRow, toCol;
@@ -487,16 +483,16 @@ bool validateMoveCommand(char* command, char* error, bool player) {
 	if (!getNextMoveCommandCoordinates(fromRow, fromCol, command, error, i)) return false;
 	if (!getNextMoveCommandCoordinates(toRow, toCol, command, error, i)) return false;
 
-	if (!validatePositionBounds(fromRow, fromCol, toRow, toCol, command, error)) return false;
+	if (!validatePositionBounds(boardSize, fromRow, fromCol, toRow, toCol, command, error)) return false;
 
 	if (fromRow != toRow && fromCol != toCol) {
 		strcpy(error, "Invalid move. The move must be either vertical or horizontal");
 		return false;
 	}
 
-	if (!validateIfPieceCanMoveTo(fromRow, fromCol, toRow, toCol, player, error)) return false;
+	if (!validateIfPieceCanMoveTo(board, fromRow, fromCol, toRow, toCol, player, error)) return false;
 
-	if (!validateIfPieceCanMoveThrough(fromRow, fromCol, toRow, toCol, error)) return false;
+	if (!validateIfPieceCanMoveThrough(board, fromRow, fromCol, toRow, toCol, error)) return false;
 
 	return true;
 }
@@ -548,7 +544,7 @@ bool validateBackCommand(char* command, char* error) {
 	return true;
 }
 
-bool isValidCommand(char* command, char* error, bool player) {
+bool isValidCommand(int*** board, int boardSize, char* command, char* error, bool player) {
 	if (command == nullptr) return false;
 
 	if (strlen(command) < 4) {
@@ -567,7 +563,7 @@ bool isValidCommand(char* command, char* error, bool player) {
 
 	switch (inputCommandType) {
 	case MOVE:
-		return validateMoveCommand(command, error, player);
+		return validateMoveCommand(board, boardSize, command, error, player);
 		break;
 	case BACK:
 		return validateBackCommand(command, error);
@@ -578,7 +574,7 @@ bool isValidCommand(char* command, char* error, bool player) {
 	return true;
 }
 
-bool canCaptureKing(int row, int col) {
+bool canCaptureKing(int*** board, int boardSize, int row, int col) {
 	const int directions[4][2] = {
 	    {0, -1}, // Left
 	    {0, 1},  // Right
@@ -602,7 +598,7 @@ bool canCaptureKing(int row, int col) {
 	return true;
 }
 
-bool canCapture(int row, int col, int dRow, int dCol) {
+bool canCapture(int*** board, int boardSize, int row, int col, int dRow, int dCol) {
 	int neighbourRow = row + dRow;
 	int neighbourCol = col + dCol;
 	int twoTileAwayRow = row + 2 * dRow;
@@ -612,12 +608,12 @@ bool canCapture(int row, int col, int dRow, int dCol) {
 
 	if (board[neighbourRow][neighbourCol][PIECE] == EMPTY) return false;
 
-	if (board[neighbourRow][neighbourCol][PIECE] == KING) return canCaptureKing(neighbourRow, neighbourCol);
+	if (board[neighbourRow][neighbourCol][PIECE] == KING) return canCaptureKing(board, boardSize, neighbourRow, neighbourCol);
 
 	if (twoTileAwayRow < 0 || twoTileAwayRow >= boardSize || twoTileAwayCol < 0 || twoTileAwayCol >= boardSize) return false;
 
-	int* twoTileAwayPosition = board[twoTileAwayRow][twoTileAwayCol];
-	int currentPiece = board[row][col][PIECE];
+	const int* twoTileAwayPosition = board[twoTileAwayRow][twoTileAwayCol];
+	const int currentPiece = board[row][col][PIECE];
 
 	bool samePiece = (twoTileAwayPosition[PIECE] == currentPiece);
 	bool kingThrone = (twoTileAwayPosition[SQUARE] == KING_THRONE);
@@ -647,7 +643,7 @@ void appendCaptureInfoToMessage(char* infoMessage, int row, int col) {
 	strcat(infoMessage, " ");
 }
 
-void executeMoveCommand(char* command, char* infoMessage, bool& player) {
+void executeMoveCommand(int*** board, int boardSize, char* command, char* infoMessage, bool& player) {
 	int fromRow, fromCol, toRow, toCol;
 	int i = 4;
 	getNextMoveCommandCoordinates(fromRow, fromCol, command, infoMessage, i);
@@ -672,7 +668,7 @@ void executeMoveCommand(char* command, char* infoMessage, bool& player) {
 		int dRow = directions[i][0], dCol = directions[i][1];
 		int captureRow = toRow + dRow;
 		int captureCol = toCol + dCol;
-		if (canCapture(toRow, toCol, dRow, dCol)) {
+		if (canCapture(board, boardSize, toRow, toCol, dRow, dCol)) {
 			if (!atLeastOneCapture) {
 				strcat(infoMessage, (player == PLAYER1) ? "Attacker captured: " : "Defender captured: ");
 				movesFile << 'x';
@@ -704,7 +700,7 @@ void getNextMoveFileCoordinates(int& row, int& col, char* move, int& i) {
 	row--;
 }
 
-void reverseMove(char* move, bool& player, char* infoMessage) {
+void reverseMove(int*** board, char* move, bool& player, char* infoMessage) {
 	int i = 0;
 	int fromRow, fromCol, toRow, toCol;
 	getNextMoveFileCoordinates(fromRow, fromCol, move, i);
@@ -730,7 +726,7 @@ void reverseMove(char* move, bool& player, char* infoMessage) {
 	player = !player;
 }
 
-void executeBackCommand(char* command, char* infoMessage, bool& player) {
+void executeBackCommand(int*** board, char* command, char* infoMessage, bool& player) {
 	std::ifstream movesFile("moves.vch");
 
 	int stepsBack = 1;
@@ -750,7 +746,7 @@ void executeBackCommand(char* command, char* infoMessage, bool& player) {
 	movesFile.close();
 
 	for (int i = 1; i <= stepsBack; ++i) {
-		reverseMove(moves[moveCount - i], player, infoMessage);
+		reverseMove(board, moves[moveCount - i], player, infoMessage);
 	}
 
 	std::ofstream newMovesFile("moves.vch", std::ios::trunc);
@@ -798,7 +794,7 @@ void appendPlayerTurnInfo(char* infoMessage, bool player) {
 	strcat(infoMessage, (player == PLAYER1) ? "Attacker's turn" : "Defender's turn");
 }
 
-void getPiecesCount(int& attackerCount, int& defenderCount, int& kingCount) {
+void getPiecesCount(int*** board, int boardSize, int& attackerCount, int& defenderCount, int& kingCount) {
 	attackerCount = 0;
 	defenderCount = 0;
 	kingCount = 0;
@@ -836,10 +832,10 @@ void intToStr(int num, char* str) {
 	str[j] = '\0';
 }
 
-void appendLeftPiecesInfo(char* infoMessage) {
+void appendLeftPiecesInfo(int*** board, int boardSize, int& totalAttackers, int& totalDefenders, char* infoMessage) {
 	strcat(infoMessage, "Pieces left: ");
 	int attackerCount, defenderCount, kingCount;
-	getPiecesCount(attackerCount, defenderCount, kingCount);
+	getPiecesCount(board, boardSize, attackerCount, defenderCount, kingCount);
 
 	strcat(infoMessage, "Attackers: ");
 	char numStr[30];
@@ -853,31 +849,33 @@ void appendLeftPiecesInfo(char* infoMessage) {
 	intToStr(defenderCount + kingCount, numStr);
 	strcat(infoMessage, numStr);
 	strcat(infoMessage, "/");
-	intToStr(totalDefenders + totalKings, numStr);
+	const int TOTAL_KINGS = 1;
+	intToStr(totalDefenders + TOTAL_KINGS, numStr);
 	strcat(infoMessage, numStr);
 }
 
-void executeInfoCommand(char* infoMessage, bool player) {
+void executeInfoCommand(int*** board, int boardSize, int& totalAttackers, int& totalDefenders, char* infoMessage, bool player) {
 	strcat(infoMessage, "Current game status: [");
 	appendPlayerTurnInfo(infoMessage, player);
 	strcat(infoMessage, " | ");
 	appendMoveCountInfo(infoMessage);
 	strcat(infoMessage, " | ");
-	appendLeftPiecesInfo(infoMessage);
+	appendLeftPiecesInfo(board, boardSize, totalAttackers, totalDefenders, infoMessage);
 	strcat(infoMessage, "]");
 }
 
-void executeCommand(char* command, char* infoMessage, bool& player, bool& gameEnded) {
+void executeCommand(int*** board, int boardSize, int& totalAttackers, int& totalDefenders, char* command, char* infoMessage, bool& player,
+                    bool& gameEnded) {
 	int inputCommandType = getCommandType(command);
 	switch (inputCommandType) {
 	case MOVE:
-		executeMoveCommand(command, infoMessage, player);
+		executeMoveCommand(board, boardSize, command, infoMessage, player);
 		break;
 	case BACK:
-		executeBackCommand(command, infoMessage, player);
+		executeBackCommand(board, command, infoMessage, player);
 		break;
 	case INFO:
-		executeInfoCommand(infoMessage, player);
+		executeInfoCommand(board, boardSize, totalAttackers, totalDefenders, infoMessage, player);
 		break;
 	case HELP:
 		strcat(infoMessage, "Available commands:\n");
@@ -893,7 +891,7 @@ void executeCommand(char* command, char* infoMessage, bool& player, bool& gameEn
 	}
 }
 
-bool hasGameEnded() {
+bool hasGameEnded(int*** board, int boardSize) {
 	bool isKingAlive = false;
 	bool isKingOnGoal = false;
 	int attackerCount = 0, defenderCount = 0;
@@ -920,12 +918,13 @@ bool hasGameEnded() {
 	return (attackerCount == 0) || (!isKingAlive) || (defenderCount == 0 && !isKingAlive) || isKingOnGoal;
 }
 
-void playerMove(bool& player, char* infoMessage, bool& gameEnded) {
+void playerMove(int*** board, int boardSize, int& totalAttackers, int& totalDefenders, char* squareChars, bool& player, char* infoMessage,
+                bool& gameEnded) {
 	char command[1024];
 
 	char error[1024] = "";
 	do {
-		printTable();
+		printTable(board, boardSize, squareChars);
 		if (strlen(error) > 0) {
 			std::cerr << error << std::endl;
 			error[0] = '\0';
@@ -936,9 +935,9 @@ void playerMove(bool& player, char* infoMessage, bool& gameEnded) {
 		}
 		std::cout << ((player == PLAYER1) ? "[ATTACKER]: " : "[DEFENDER]: ");
 		std::cin.getline(command, 1024);
-	} while (!isValidCommand(command, error, player));
+	} while (!isValidCommand(board, boardSize, command, error, player));
 
-	executeCommand(command, infoMessage, player, gameEnded);
+	executeCommand(board, boardSize, totalAttackers, totalDefenders, command, infoMessage, player, gameEnded);
 }
 
 bool clearMovesFile() {
@@ -951,10 +950,10 @@ bool clearMovesFile() {
 	return true;
 }
 
-void startGame(char* table) {
+void startGame(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, char* squareChars, char* table) {
 	std::cout << table << std::endl;
 	const char* tableToLoad = (strcmp(table, "") == 0) ? "test" : table;
-	if (!loadTable(tableToLoad)) return;
+	if (!loadTable(board, boardSize, totalAttackers, totalDefenders, tableToLoad)) return;
 
 	clearMovesFile();
 
@@ -963,14 +962,16 @@ void startGame(char* table) {
 	char infoMessage[1024] = "";
 
 	while (!gameEnded) {
-		playerMove(currentTurn, infoMessage, gameEnded);
+		playerMove(board, boardSize, totalAttackers, totalDefenders, squareChars, currentTurn, infoMessage, gameEnded);
 
-		if (hasGameEnded()) gameEnded = true;
+		if (hasGameEnded(board, boardSize)) gameEnded = true;
 	}
 
-	printTable();
+	printTable(board, boardSize, squareChars);
 	std::cout << "~Game ended~" << std::endl;
-	std::cout << infoMessage << std::endl;
+	if (infoMessage[0] != '\0') {
+		std::cout << infoMessage << std::endl;
+	}
 	std::cout << "Press Enter to continue...";
 	std::cin.get();
 }
@@ -996,7 +997,7 @@ char* inputFilePath(const char* startingPath, const char* message) {
 	return chosenFile;
 }
 
-void chooseTable(char* chosenTable) {
+void chooseTable(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, char* chosenTable) {
 	clearTerminal();
 	std::cout << "~Table Selection~" << std::endl;
 	const char* choices[] = {"9x9", "11x11", "Input your own"};
@@ -1006,15 +1007,15 @@ void chooseTable(char* chosenTable) {
 		if (choice == 3) {
 			do {
 				strcpy(chosenTable, inputFilePath("./startingTables/", "Enter only the name (without .vch) of your table file: "));
-			} while (!loadTable(chosenTable));
+			} while (!loadTable(board, boardSize, totalAttackers, totalDefenders, chosenTable));
 			return;
 		}
 		strcpy(chosenTable, choices[choice - 1]);
 		toLowerStr(chosenTable);
-	} while (!loadTable(chosenTable));
+	} while (!loadTable(board, boardSize, totalAttackers, totalDefenders, chosenTable));
 }
 
-void chooseSkin() {
+void chooseSkin(char*& squareChars) {
 	clearTerminal();
 	std::cout << "~Skin Selection~" << std::endl;
 	const char* choices[] = {"Default", "Minimalistic", "Input your own"};
@@ -1025,15 +1026,15 @@ void chooseSkin() {
 		if (choice == 3) {
 			do {
 				strcpy(chosenSkin, inputFilePath("./pieceSkins/", "Enter only the name (without .vch) of your skin file: "));
-			} while (!loadSkin(chosenSkin));
+			} while (!loadSkin(chosenSkin, squareChars));
 			return;
 		}
 		strcpy(chosenSkin, choices[choice - 1]);
 		toLowerStr(chosenSkin);
-	} while (!loadSkin(chosenSkin));
+	} while (!loadSkin(chosenSkin, squareChars));
 }
 
-void MainMenu() {
+void MainMenu(int***& board, int& boardSize, char* squareChars, int& totalAttackers, int& totalDefenders) {
 	bool quit = false;
 	char chosenTable[50] = {0};
 
@@ -1044,16 +1045,16 @@ void MainMenu() {
 		int choice = multipleChoice(choices, 4);
 		switch (choice) {
 		case 1:
-			startGame(chosenTable);
+			startGame(board, boardSize, totalAttackers, totalDefenders, squareChars, chosenTable);
 			break;
 		case 2:
-			chooseTable(chosenTable);
+			chooseTable(board, boardSize, totalAttackers, totalDefenders, chosenTable);
 			break;
 		case 3:
-			chooseSkin();
+			chooseSkin(squareChars);
 			break;
 		case 4:
-			freeBoard();
+			freeBoard(board, boardSize);
 			quit = true;
 			return;
 		}
@@ -1061,8 +1062,12 @@ void MainMenu() {
 }
 
 void VikingChess() {
-	if (!loadSkin("default")) return;
-	MainMenu();
+	char squareChars[TOTAL_SQUARES];
+	int*** board;
+	int boardSize;
+	int totalAttackers, totalDefenders;
+	if (!loadSkin("default", squareChars)) return;
+	MainMenu(board, boardSize, squareChars, totalAttackers, totalDefenders);
 }
 
 int main() {
