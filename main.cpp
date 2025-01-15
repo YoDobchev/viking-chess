@@ -111,9 +111,11 @@ enum Players {
 };
 
 const size_t TOTAL_SQUARES = 5;
+const size_t STR_MAX_LENGTH = 512;
+const size_t NUM_STR_MAX_LENGTH = 10;
 
 bool loadSkin(const char* skin, char squareChars[TOTAL_SQUARES]) {
-	char filePath[256] = "./pieceSkins/";
+	char filePath[STR_MAX_LENGTH] = "./pieceSkins/";
 	strcat(filePath, skin);
 	strcat(filePath, ".vch");
 	std::ifstream file(filePath);
@@ -153,7 +155,7 @@ void freeBoard(int***& board, int& boardSize) {
 }
 
 bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, const char* table) {
-	char filePath[256] = "./startingTables/";
+	char filePath[STR_MAX_LENGTH] = "./startingTables/";
 	strcat(filePath, table);
 	strcat(filePath, ".vch");
 	std::ifstream file(filePath);
@@ -291,6 +293,7 @@ int multipleChoice(const char* choices[], int numChoices) {
 
 	bool validChoice = false;
 	int choice = 0;
+	const int IGNORE_CHARS = 10000;
 
 	while (!validChoice) {
 		std::cout << "Choice: ";
@@ -298,10 +301,10 @@ int multipleChoice(const char* choices[], int numChoices) {
 
 		if (std::cin.fail() || choice <= 0 || choice > numChoices) {
 			std::cin.clear();
-			std::cin.ignore(10000, '\n');
+			std::cin.ignore(IGNORE_CHARS, '\n');
 			std::cout << "Invalid choice, please enter a number between 1 and " << numChoices << "." << std::endl;
 		} else {
-			std::cin.ignore(10000, '\n');
+			std::cin.ignore(IGNORE_CHARS, '\n');
 			validChoice = true;
 		}
 	}
@@ -317,7 +320,7 @@ enum CommandTypes {
 };
 
 int getCommandType(char* command) {
-	char commandTypeStr[1024];
+	char commandTypeStr[STR_MAX_LENGTH];
 	int i = 0;
 	while (command[i] != ' ' && command[i] != '\0') {
 		commandTypeStr[i] = command[i];
@@ -479,6 +482,7 @@ bool validateMoveCommand(int*** board, int boardSize, char* command, char* error
 	if (!canOpenMoveFile(error)) return false;
 
 	int fromRow, fromCol, toRow, toCol;
+	// Skip the 'move'
 	int i = 4;
 	if (!getNextMoveCommandCoordinates(fromRow, fromCol, command, error, i)) return false;
 	if (!getNextMoveCommandCoordinates(toRow, toCol, command, error, i)) return false;
@@ -624,7 +628,7 @@ bool canCapture(int*** board, int boardSize, int row, int col, int dRow, int dCo
 
 void appendCaptureInfoToMessage(char* infoMessage, int row, int col) {
 	char colChar[2] = {(char)(col + 'a'), '\0'};
-	char rowChar[10];
+	char rowChar[NUM_STR_MAX_LENGTH];
 
 	int index = 0;
 	int rowNumber = row + 1;
@@ -736,7 +740,8 @@ void executeBackCommand(int*** board, char* command, char* infoMessage, bool& pl
 	// x - 1 character
 	// Max captures - 3 x 3 characters each
 	const int MAX_MOVE_LENGTH = 16;
-	char moves[300][MAX_MOVE_LENGTH];
+	const int MAX_MOVES = 300;
+	char moves[MAX_MOVES][MAX_MOVE_LENGTH];
 	int moveCount = 0;
 	char move[MAX_MOVE_LENGTH];
 	while (movesFile.getline(move, MAX_MOVE_LENGTH)) {
@@ -775,7 +780,7 @@ void appendMoveCountInfo(char* infoMessage) {
 		strcat(infoMessage, "0");
 		return;
 	}
-	char moveCountChar[10];
+	char moveCountChar[NUM_STR_MAX_LENGTH];
 	int index = 0;
 	while (moveCount > 0) {
 		moveCountChar[index++] = (char)((moveCount % 10) + '0');
@@ -838,7 +843,7 @@ void appendLeftPiecesInfo(int*** board, int boardSize, int& totalAttackers, int&
 	getPiecesCount(board, boardSize, attackerCount, defenderCount, kingCount);
 
 	strcat(infoMessage, "Attackers: ");
-	char numStr[30];
+	char numStr[STR_MAX_LENGTH];
 	intToStr(attackerCount, numStr);
 	strcat(infoMessage, numStr);
 	strcat(infoMessage, "/");
@@ -920,9 +925,9 @@ bool hasGameEnded(int*** board, int boardSize) {
 
 void playerMove(int*** board, int boardSize, int& totalAttackers, int& totalDefenders, char* squareChars, bool& player, char* infoMessage,
                 bool& gameEnded) {
-	char command[1024];
+	char command[STR_MAX_LENGTH];
 
-	char error[1024] = "";
+	char error[STR_MAX_LENGTH] = "";
 	do {
 		printTable(board, boardSize, squareChars);
 		if (strlen(error) > 0) {
@@ -934,7 +939,7 @@ void playerMove(int*** board, int boardSize, int& totalAttackers, int& totalDefe
 			infoMessage[0] = '\0';
 		}
 		std::cout << ((player == PLAYER1) ? "[ATTACKER]: " : "[DEFENDER]: ");
-		std::cin.getline(command, 1024);
+		std::cin.getline(command, STR_MAX_LENGTH);
 	} while (!isValidCommand(board, boardSize, command, error, player));
 
 	executeCommand(board, boardSize, totalAttackers, totalDefenders, command, infoMessage, player, gameEnded);
@@ -959,7 +964,7 @@ void startGame(int***& board, int& boardSize, int& totalAttackers, int& totalDef
 
 	bool gameEnded = false;
 	bool currentTurn = PLAYER1;
-	char infoMessage[1024] = "";
+	char infoMessage[STR_MAX_LENGTH] = "";
 
 	while (!gameEnded) {
 		playerMove(board, boardSize, totalAttackers, totalDefenders, squareChars, currentTurn, infoMessage, gameEnded);
@@ -977,8 +982,8 @@ void startGame(int***& board, int& boardSize, int& totalAttackers, int& totalDef
 }
 
 char* inputFilePath(const char* startingPath, const char* message) {
-	char* filePath = new char[256];
-	char* chosenFile = new char[256];
+	char* filePath = new char[STR_MAX_LENGTH];
+	char* chosenFile = new char[STR_MAX_LENGTH];
 	do {
 		std::cout << message;
 		std::cin.getline(chosenFile, 256);
@@ -1019,7 +1024,7 @@ void chooseSkin(char*& squareChars) {
 	clearTerminal();
 	std::cout << "~Skin Selection~" << std::endl;
 	const char* choices[] = {"Default", "Minimalistic", "Input your own"};
-	char chosenSkin[50];
+	char chosenSkin[STR_MAX_LENGTH];
 	int choice;
 	do {
 		choice = multipleChoice(choices, 3);
@@ -1036,7 +1041,7 @@ void chooseSkin(char*& squareChars) {
 
 void MainMenu(int***& board, int& boardSize, char* squareChars, int& totalAttackers, int& totalDefenders) {
 	bool quit = false;
-	char chosenTable[50] = {0};
+	char chosenTable[STR_MAX_LENGTH] = {0};
 
 	while (!quit) {
 		clearTerminal();
