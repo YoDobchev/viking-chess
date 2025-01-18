@@ -888,11 +888,11 @@ void executeCommand(int*** board, int boardSize, int totalAttackers, int totalDe
 		break;
 	case HELP:
 		strcat(infoMessage, "Available commands:\n");
-		strcat(infoMessage, "  move <from> <to> - Moves a piece from one position to another.\n");
-		strcat(infoMessage, "  back <num> - Reverts the game state by a specified number of moves.\n");
-		strcat(infoMessage, "  info - Displays current game information.\n");
-		strcat(infoMessage, "  help - Displays a list of available commands.\n");
-		strcat(infoMessage, "  quit - Quits the game to the main menu.");
+		strcat(infoMessage, "  move <from> <to> - Moves a piece from one position to another\n");
+		strcat(infoMessage, "  back <num> - Reverts the game state by a specified number of moves\n");
+		strcat(infoMessage, "  info - Displays current game information\n");
+		strcat(infoMessage, "  help - Displays a list of available commands\n");
+		strcat(infoMessage, "  quit - Quits the game to the main menu");
 		break;
 	case QUIT:
 		gameEnded = true;
@@ -1005,7 +1005,7 @@ bool clearMovesFile() {
 }
 
 void startGame(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, char* squareChars, char* table) {
-	const char* tableToLoad = (strcmp(table, "") == 0) ? "test" : table;
+	const char* tableToLoad = (strcmp(table, "") == 0) ? "9x9" : table;
 	if (!loadTable(board, boardSize, totalAttackers, totalDefenders, tableToLoad)) return;
 
 	clearMovesFile();
@@ -1022,9 +1022,11 @@ void startGame(int***& board, int& boardSize, int& totalAttackers, int& totalDef
 
 	printTable(board, boardSize, squareChars);
 	std::cout << "~Game ended~" << std::endl;
-	// Opposite player because after the last playMove() currentTurn gets changed
-	std::cout << ((!currentTurn == ATTACKING_PLAYER) ? "Attackers" : "Defenders") << " won!" << std::endl;
-	std::cout << infoMessage << std::endl;
+	if (strlen(infoMessage) > 0) {
+		// Opposite player because after the last playMove() currentTurn gets changed
+		std::cout << ((!currentTurn == ATTACKING_PLAYER) ? "Attackers" : "Defenders") << " won!" << std::endl;
+		std::cout << infoMessage << std::endl;
+	}
 	std::cout << "Press Enter to continue...";
 	std::cin.get();
 }
