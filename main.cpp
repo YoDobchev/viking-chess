@@ -208,7 +208,8 @@ void allocateBoard(int***& board, int boardSize) {
 	}
 }
 
-bool parseBoardLine(const char* line, int row, int boardSize, int*** board, int& totalAttackers, int& totalDefenders, int& totalKings) {
+bool parseBoardLine(const char* line, int row, int boardSize, int*** board, int& totalAttackers, int& totalDefenders, int& totalKings,
+                    int& totalEscapePos) {
 	int col = 0;
 	for (size_t i = 0; i < strlen(line); ++i) {
 		if (line[i] == ' ') continue;
@@ -235,6 +236,7 @@ bool parseBoardLine(const char* line, int row, int boardSize, int*** board, int&
 		case 'X':
 			board[row][col][PIECE] = EMPTY;
 			board[row][col][SQUARE] = KING_ESCAPE;
+			totalEscapePos++;
 			break;
 		default:
 			std::cerr << "Error: Unrecognized character '" << line[i] << "' at row " << row << ", col " << col << std::endl;
@@ -251,7 +253,7 @@ bool parseBoardLine(const char* line, int row, int boardSize, int*** board, int&
 	return true;
 }
 
-bool validateBoard(int boardSize, int totalAttackers, int totalDefenders, int totalKings) {
+bool validateBoard(int boardSize, int totalAttackers, int totalDefenders, int totalKings, int totalEscapePos) {
 	if (totalKings != 1) {
 		std::cerr << "Error: Expected 1 king, got " << totalKings << std::endl;
 		return false;
@@ -264,6 +266,11 @@ bool validateBoard(int boardSize, int totalAttackers, int totalDefenders, int to
 
 	if (totalDefenders < 3) {
 		std::cerr << "Error: Expected at least 3 defenders, got " << totalDefenders << std::endl;
+		return false;
+	}
+
+	if (totalEscapePos < 1) {
+		std::cerr << "Error: Expected at least 1 escape position, got " << totalEscapePos << std::endl;
 		return false;
 	}
 
@@ -291,13 +298,13 @@ bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDef
 	file.clear();
 	file.seekg(0);
 
-	int totalKings = 0;
+	int totalKings = 0, totalEscapePos = 0;
 	totalAttackers = 0;
 	totalDefenders = 0;
 	char* line = new char[STR_MAX_LENGTH];
 	int row = 0;
 	while (file.getline(line, STR_MAX_LENGTH) && row < boardSize) {
-		if (!parseBoardLine(line, row, boardSize, board, totalAttackers, totalDefenders, totalKings)) {
+		if (!parseBoardLine(line, row, boardSize, board, totalAttackers, totalDefenders, totalKings, totalEscapePos)) {
 			delete[] line;
 			freeBoard(board, boardSize);
 			file.close();
@@ -315,7 +322,7 @@ bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDef
 		return false;
 	}
 
-	if (!validateBoard(boardSize, totalAttackers, totalDefenders, totalKings)) {
+	if (!validateBoard(boardSize, totalAttackers, totalDefenders, totalKings, totalEscapePos)) {
 		freeBoard(board, boardSize);
 		return false;
 	}
