@@ -114,7 +114,7 @@ enum Pieces {
 
 enum Squares {
 	NORMAL,
-	KING_GOAL,
+	KING_ESCAPE,
 	KING_THRONE,
 };
 
@@ -200,7 +200,7 @@ void allocateBoard(int***& board, int boardSize) {
 	for (int i = 0; i < boardSize; ++i) {
 		board[i] = new int*[boardSize];
 		for (int j = 0; j < boardSize; ++j) {
-			// As the king can be on the throne or his goal, the position should
+			// As the king can be on the throne or escaping positions, the position should
 			// have infomation about the type of piece and type of square
 			// 0 - piece, 1 - square
 			board[i][j] = new int[2];
@@ -234,7 +234,7 @@ bool parseBoardLine(const char* line, int row, int boardSize, int*** board, int&
 			break;
 		case 'X':
 			board[row][col][PIECE] = EMPTY;
-			board[row][col][SQUARE] = KING_GOAL;
+			board[row][col][SQUARE] = KING_ESCAPE;
 			break;
 		default:
 			std::cerr << "Error: Unrecognized character '" << line[i] << "' at row " << row << ", col " << col << std::endl;
@@ -459,8 +459,8 @@ bool validateIfPieceCanMoveTo(int*** board, int fromRow, int fromCol, int toRow,
 		return false;
 	}
 
-	if (board[toRow][toCol][SQUARE] == KING_GOAL && pieceOnFrom != KING) {
-		strcpy(error, "Invalid move. Only the king can move to the king's goal positions");
+	if (board[toRow][toCol][SQUARE] == KING_ESCAPE && pieceOnFrom != KING) {
+		strcpy(error, "Invalid move. Only the king can move to the king's escape positions");
 		return false;
 	}
 
@@ -597,10 +597,10 @@ bool canCaptureKing(int*** board, int boardSize, int row, int col) {
 		if (isEdge) continue;
 
 		bool isAttacker = board[row + dRow][col + dCol][PIECE] == ATTACKER;
-		bool isKingGoal = board[row + dRow][col + dCol][SQUARE] == KING_GOAL;
+		bool isKingEscape = board[row + dRow][col + dCol][SQUARE] == KING_ESCAPE;
 		bool isKingThrone = board[row + dRow][col + dCol][SQUARE] == KING_THRONE;
 
-		if (!(isAttacker || isKingGoal || isKingThrone)) return false;
+		if (!(isAttacker || isKingEscape || isKingThrone)) return false;
 	}
 
 	return true;
@@ -625,9 +625,9 @@ bool canCapture(int*** board, int boardSize, int row, int col, int dRow, int dCo
 
 	bool samePiece = (twoTileAwayPosition[PIECE] == currentPiece);
 	bool kingThrone = (twoTileAwayPosition[SQUARE] == KING_THRONE && twoTileAwayPosition[PIECE] == EMPTY);
-	bool kingGoal = (twoTileAwayPosition[SQUARE] == KING_GOAL);
+	bool kingEscape = (twoTileAwayPosition[SQUARE] == KING_ESCAPE);
 
-	return samePiece || kingThrone || kingGoal;
+	return samePiece || kingThrone || kingEscape;
 }
 
 void appendCaptureInfoToMessage(char* infoMessage, int row, int col) {
@@ -902,7 +902,7 @@ void executeCommand(int*** board, int boardSize, int totalAttackers, int totalDe
 
 bool hasGameEnded(int*** board, int boardSize, char* infoMessage) {
 	bool isKingAlive = false;
-	bool isKingOnGoal = false;
+	bool isKingOnEscape = false;
 	int attackerCount = 0, defenderCount = 0;
 
 	for (int i = 0; i < boardSize; ++i) {
@@ -916,12 +916,12 @@ bool hasGameEnded(int*** board, int boardSize, char* infoMessage) {
 				defenderCount++;
 			} else if (piece == KING) {
 				isKingAlive = true;
-				if (square == KING_GOAL) {
-					isKingOnGoal = true;
+				if (square == KING_ESCAPE) {
+					isKingOnEscape = true;
 				}
 			}
 		}
-		if (isKingOnGoal) break;
+		if (isKingOnEscape) break;
 	}
 
 	if (attackerCount == 0) {
@@ -934,7 +934,7 @@ bool hasGameEnded(int*** board, int boardSize, char* infoMessage) {
 		return true;
 	}
 
-	if (isKingOnGoal) {
+	if (isKingOnEscape) {
 		strcpy(infoMessage, "The King escaped from the board");
 		return true;
 	}
@@ -959,9 +959,9 @@ void printTable(int*** board, int boardSize, const char* squareChars) {
 	std::cout << std::endl;
 	for (int i = 0; i < boardSize; ++i) {
 		for (int j = 0; j < boardSize; ++j) {
-			if (board[i][j][PIECE] == EMPTY && (board[i][j][SQUARE] == KING_GOAL || board[i][j][SQUARE] == KING_THRONE)) {
-				const int INDEX_FOR_THRONE_AND_GOAL = 4;
-				std::cout << squareChars[INDEX_FOR_THRONE_AND_GOAL];
+			if (board[i][j][PIECE] == EMPTY && (board[i][j][SQUARE] == KING_ESCAPE || board[i][j][SQUARE] == KING_THRONE)) {
+				const int INDEX_FOR_THRONE_AND_ESCAPE = 4;
+				std::cout << squareChars[INDEX_FOR_THRONE_AND_ESCAPE];
 			} else {
 				std::cout << squareChars[board[i][j][PIECE]];
 			}
