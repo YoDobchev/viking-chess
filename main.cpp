@@ -175,17 +175,7 @@ void freeBoard(int***& board, int& boardSize) {
 	board = nullptr;
 }
 
-bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, const char* tableToLoad) {
-	char filePath[STR_MAX_LENGTH] = "./startingTables/";
-	strcat(filePath, tableToLoad);
-	strcat(filePath, ".vch");
-	std::ifstream file(filePath);
-
-	if (!file.is_open()) {
-		std::cerr << "Error: Couldn't open table file" << std::endl;
-		return false;
-	}
-
+bool determineBoardSize(std::ifstream& file, int& boardSize) {
 	const int MAX_BOARD_SIZE = 256;
 	char* line = new char[MAX_BOARD_SIZE];
 	if (!file.getline(line, MAX_BOARD_SIZE)) {
@@ -201,7 +191,11 @@ bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDef
 			++boardSize;
 		}
 	}
+	delete[] line;
+	return true;
+}
 
+void allocateBoard(int***& board, int boardSize) {
 	board = new int**[boardSize];
 	for (int i = 0; i < boardSize; ++i) {
 		board[i] = new int*[boardSize];
@@ -212,55 +206,108 @@ bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDef
 			board[i][j] = new int[2];
 		}
 	}
+}
+
+bool parseBoardLine(const char* line, int row, int boardSize, int*** board, int& totalAttackers, int& totalDefenders, int& totalKings) {
+	int col = 0;
+	for (size_t i = 0; i < strlen(line); ++i) {
+		if (line[i] == ' ') continue;
+
+		board[row][col][SQUARE] = NORMAL;
+
+		switch (line[i]) {
+		case '*':
+			board[row][col][PIECE] = EMPTY;
+			break;
+		case 'A':
+			board[row][col][PIECE] = ATTACKER;
+			totalAttackers++;
+			break;
+		case 'D':
+			board[row][col][PIECE] = DEFENDER;
+			totalDefenders++;
+			break;
+		case 'K':
+			board[row][col][PIECE] = KING;
+			board[row][col][SQUARE] = KING_THRONE;
+			totalKings++;
+			break;
+		case 'X':
+			board[row][col][PIECE] = EMPTY;
+			board[row][col][SQUARE] = KING_GOAL;
+			break;
+		default:
+			std::cerr << "Error: Unrecognized character '" << line[i] << "' at row " << row << ", col " << col << std::endl;
+			return false;
+		}
+		col++;
+	}
+
+	if (col != boardSize) {
+		std::cerr << "Error: Inconsistent number of columns at row " << row + 1 << std::endl;
+		return false;
+	}
+
+	return true;
+}
+
+bool validateBoard(int boardSize, int totalAttackers, int totalDefenders, int totalKings) {
+	if (totalKings != 1) {
+		std::cerr << "Error: Expected 1 king, got " << totalKings << std::endl;
+		return false;
+	}
+
+	if (totalAttackers < 3) {
+		std::cerr << "Error: Expected at least 3 attackers, got " << totalAttackers << std::endl;
+		return false;
+	}
+
+	if (totalDefenders < 3) {
+		std::cerr << "Error: Expected at least 3 defenders, got " << totalDefenders << std::endl;
+		return false;
+	}
+
+	return true;
+}
+
+bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, const char* tableToLoad) {
+	char filePath[STR_MAX_LENGTH] = "./startingTables/";
+	strcat(filePath, tableToLoad);
+	strcat(filePath, ".vch");
+
+	std::ifstream file(filePath);
+	if (!file.is_open()) {
+		std::cerr << "Error: Couldn't open table file" << std::endl;
+		return false;
+	}
+
+	if (!determineBoardSize(file, boardSize)) {
+		file.close();
+		return false;
+	}
+
+	allocateBoard(board, boardSize);
 
 	file.clear();
 	file.seekg(0);
 
+	int totalKings = 0;
 	totalAttackers = 0;
 	totalDefenders = 0;
-	int totalKings = 0;
+	char* line = new char[STR_MAX_LENGTH];
 	int row = 0;
-	while (file.getline(line, MAX_BOARD_SIZE) && row < boardSize) {
-		int col = 0;
-		for (size_t i = 0; i < strlen(line); ++i) {
-			if (line[i] == ' ') continue;
-
-			board[row][col][SQUARE] = NORMAL;
-
-			if (line[i] == '*')
-				board[row][col][PIECE] = EMPTY;
-			else if (line[i] == 'A') {
-				board[row][col][PIECE] = ATTACKER;
-				totalAttackers++;
-			} else if (line[i] == 'D') {
-				board[row][col][PIECE] = DEFENDER;
-				totalDefenders++;
-			} else if (line[i] == 'K') {
-				board[row][col][PIECE] = KING;
-				board[row][col][SQUARE] = KING_THRONE;
-				totalKings++;
-			} else if (line[i] == 'X') {
-				board[row][col][PIECE] = EMPTY;
-				board[row][col][SQUARE] = KING_GOAL;
-			} else {
-				std::cerr << "Error: Unrecognized character '" << line[i] << "' at row " << row << ", col " << col << std::endl;
-				delete[] line;
-				freeBoard(board, boardSize);
-				return false;
-			}
-			col++;
-		}
-
-		if (col != boardSize) {
-			std::cerr << "Error: Inconsistent number of columns at row " << row << std::endl;
+	while (file.getline(line, STR_MAX_LENGTH) && row < boardSize) {
+		if (!parseBoardLine(line, row, boardSize, board, totalAttackers, totalDefenders, totalKings)) {
 			delete[] line;
 			freeBoard(board, boardSize);
+			file.close();
 			return false;
 		}
 		row++;
 	}
 
 	delete[] line;
+	file.close();
 
 	if (row != boardSize) {
 		std::cerr << "Error: Inconsistent number of rows. Expected " << boardSize << ", got " << row << std::endl;
@@ -268,20 +315,7 @@ bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDef
 		return false;
 	}
 
-	if (totalKings != 1) {
-		std::cerr << "Error: Expected 1 king, got " << totalKings << std::endl;
-		freeBoard(board, boardSize);
-		return false;
-	}
-
-	if (totalAttackers < 3) {
-		std::cerr << "Error: Expected at least 3 attackers, got " << totalAttackers << std::endl;
-		freeBoard(board, boardSize);
-		return false;
-	}
-
-	if (totalDefenders < 3) {
-		std::cerr << "Error: Expected at least 3 defenders, got " << totalDefenders << std::endl;
+	if (!validateBoard(boardSize, totalAttackers, totalDefenders, totalKings)) {
 		freeBoard(board, boardSize);
 		return false;
 	}
@@ -590,7 +624,7 @@ bool canCapture(int*** board, int boardSize, int row, int col, int dRow, int dCo
 	const int currentPiece = board[row][col][PIECE];
 
 	bool samePiece = (twoTileAwayPosition[PIECE] == currentPiece);
-	bool kingThrone = (twoTileAwayPosition[SQUARE] == KING_THRONE);
+	bool kingThrone = (twoTileAwayPosition[SQUARE] == KING_THRONE && twoTileAwayPosition[PIECE] == EMPTY);
 	bool kingGoal = (twoTileAwayPosition[SQUARE] == KING_GOAL);
 
 	return samePiece || kingThrone || kingGoal;
