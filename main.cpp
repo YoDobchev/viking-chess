@@ -18,9 +18,13 @@
 
 void clearTerminal() {
 #ifdef _WIN32
-	system("cls");
+	const int linesToClear = 100;
+	for (int i = 0; i < linesToClear; ++i) {
+		std::cout << '\n';
+	}
+	std::cout.flush();
 #else
-	system("clear");
+	std::cout << "\033[2J\033[H" << std::flush;
 #endif
 }
 
@@ -88,6 +92,7 @@ int strcmp(const char* str1, const char* str2) {
 }
 
 size_t strlen(const char* str) {
+	if (str == nullptr) return 0;
 	size_t length = 0;
 	while (str[length] != '\0') {
 		length++;
@@ -159,7 +164,7 @@ bool loadSkin(const char* skin, char squareChars[TOTAL_SQUARES]) {
 }
 
 void freeBoard(int***& board, int& boardSize) {
-	if (!board) return;
+	if (!board || boardSize == 0) return;
 	for (int i = 0; i < boardSize; ++i) {
 		for (int j = 0; j < boardSize; ++j) {
 			delete[] board[i][j];
@@ -265,6 +270,18 @@ bool loadTable(int***& board, int& boardSize, int& totalAttackers, int& totalDef
 
 	if (totalKings != 1) {
 		std::cerr << "Error: Expected 1 king, got " << totalKings << std::endl;
+		freeBoard(board, boardSize);
+		return false;
+	}
+
+	if (totalAttackers < 3) {
+		std::cerr << "Error: Expected at least 3 attackers, got " << totalAttackers << std::endl;
+		freeBoard(board, boardSize);
+		return false;
+	}
+
+	if (totalDefenders < 3) {
+		std::cerr << "Error: Expected at least 3 defenders, got " << totalDefenders << std::endl;
 		freeBoard(board, boardSize);
 		return false;
 	}
@@ -772,7 +789,7 @@ void getPiecesCount(int*** board, int boardSize, int& attackerCount, int& defend
 
 void intToStr(int num, char* str) {
 	int i = 0;
-	char temp[20];
+	char temp[NUM_STR_MAX_LENGTH];
 	if (num == 0) {
 		str[i++] = '0';
 	} else {
