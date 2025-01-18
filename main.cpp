@@ -119,8 +119,8 @@ enum Squares {
 };
 
 enum Players {
-	PLAYER1,
-	PLAYER2,
+	ATTACKING_PLAYER,
+	DEFENDING_PLAYER,
 };
 
 enum CommandTypes {
@@ -444,12 +444,12 @@ bool validateIfPieceCanMoveTo(int*** board, int fromRow, int fromCol, int toRow,
 		return false;
 	}
 
-	if (player == PLAYER1 && pieceOnFrom != ATTACKER) {
+	if (player == ATTACKING_PLAYER && pieceOnFrom != ATTACKER) {
 		strcpy(error, "Invalid move. Only the defender can move defenders and the king");
 		return false;
 	}
 
-	if (player == PLAYER2 && pieceOnFrom != DEFENDER && pieceOnFrom != KING) {
+	if (player == DEFENDING_PLAYER && pieceOnFrom != DEFENDER && pieceOnFrom != KING) {
 		strcpy(error, "Invalid move. Only the attacker can move attackers");
 		return false;
 	}
@@ -678,7 +678,7 @@ void executeMoveCommand(int*** board, int boardSize, char* command, char* infoMe
 		int captureCol = toCol + dCol;
 		if (canCapture(board, boardSize, toRow, toCol, dRow, dCol)) {
 			if (!atLeastOneCapture) {
-				strcat(infoMessage, (player == PLAYER1) ? "Attacker captured: " : "Defender captured: ");
+				strcat(infoMessage, (player == ATTACKING_PLAYER) ? "Attacker captured: " : "Defender captured: ");
 				movesFile << 'x';
 				atLeastOneCapture = true;
 			}
@@ -800,7 +800,7 @@ void appendMoveCountInfo(char* infoMessage) {
 }
 
 void appendPlayerTurnInfo(char* infoMessage, bool player) {
-	strcat(infoMessage, (player == PLAYER1) ? "Attacker's turn" : "Defender's turn");
+	strcat(infoMessage, (player == ATTACKING_PLAYER) ? "Attacker's turn" : "Defender's turn");
 }
 
 void getPiecesCount(int*** board, int boardSize, int& attackerCount, int& defenderCount, int& kingCount) {
@@ -841,7 +841,7 @@ void intToStr(int num, char* str) {
 	str[j] = '\0';
 }
 
-void appendLeftPiecesInfo(int*** board, int boardSize, int& totalAttackers, int& totalDefenders, char* infoMessage) {
+void appendLeftPiecesInfo(int*** board, int boardSize, int totalAttackers, int totalDefenders, char* infoMessage) {
 	strcat(infoMessage, "Pieces left: ");
 	int attackerCount, defenderCount, kingCount;
 	getPiecesCount(board, boardSize, attackerCount, defenderCount, kingCount);
@@ -873,7 +873,7 @@ void executeInfoCommand(int*** board, int boardSize, int& totalAttackers, int& t
 	strcat(infoMessage, "]");
 }
 
-void executeCommand(int*** board, int boardSize, int& totalAttackers, int& totalDefenders, char* command, char* infoMessage, bool& player,
+void executeCommand(int*** board, int boardSize, int totalAttackers, int totalDefenders, char* command, char* infoMessage, bool& player,
                     bool& gameEnded) {
 	int inputCommandType = getCommandType(command);
 	switch (inputCommandType) {
@@ -900,7 +900,7 @@ void executeCommand(int*** board, int boardSize, int& totalAttackers, int& total
 	}
 }
 
-bool hasGameEnded(int*** board, int boardSize) {
+bool hasGameEnded(int*** board, int boardSize, char* infoMessage) {
 	bool isKingAlive = false;
 	bool isKingOnGoal = false;
 	int attackerCount = 0, defenderCount = 0;
@@ -924,7 +924,22 @@ bool hasGameEnded(int*** board, int boardSize) {
 		if (isKingOnGoal) break;
 	}
 
-	return (attackerCount == 0) || (!isKingAlive) || (defenderCount == 0 && !isKingAlive) || isKingOnGoal;
+	if (attackerCount == 0) {
+		strcpy(infoMessage, "No more attackers left");
+		return true;
+	}
+
+	if (!isKingAlive) {
+		strcpy(infoMessage, "The King is dead");
+		return true;
+	}
+
+	if (isKingOnGoal) {
+		strcpy(infoMessage, "The King escaped from the board");
+		return true;
+	}
+
+	return false;
 }
 
 void printTable(int*** board, int boardSize, const char* squareChars) {
@@ -957,7 +972,7 @@ void printTable(int*** board, int boardSize, const char* squareChars) {
 	}
 }
 
-void playerMove(int*** board, int boardSize, int& totalAttackers, int& totalDefenders, char* squareChars, bool& player, char* infoMessage,
+void playerMove(int*** board, int boardSize, int totalAttackers, int totalDefenders, char* squareChars, bool& player, char* infoMessage,
                 bool& gameEnded) {
 	char command[STR_MAX_LENGTH];
 
@@ -972,7 +987,7 @@ void playerMove(int*** board, int boardSize, int& totalAttackers, int& totalDefe
 			std::cout << infoMessage << std::endl;
 			infoMessage[0] = '\0';
 		}
-		std::cout << ((player == PLAYER1) ? "[ATTACKER]: " : "[DEFENDER]: ");
+		std::cout << ((player == ATTACKING_PLAYER) ? "[ATTACKER]: " : "[DEFENDER]: ");
 		std::cin.getline(command, STR_MAX_LENGTH);
 	} while (!isValidCommand(board, boardSize, command, error, player));
 
@@ -990,27 +1005,26 @@ bool clearMovesFile() {
 }
 
 void startGame(int***& board, int& boardSize, int& totalAttackers, int& totalDefenders, char* squareChars, char* table) {
-	std::cout << table << std::endl;
 	const char* tableToLoad = (strcmp(table, "") == 0) ? "test" : table;
 	if (!loadTable(board, boardSize, totalAttackers, totalDefenders, tableToLoad)) return;
 
 	clearMovesFile();
 
 	bool gameEnded = false;
-	bool currentTurn = PLAYER1;
+	bool currentTurn = ATTACKING_PLAYER;
 	char infoMessage[STR_MAX_LENGTH] = "";
 
 	while (!gameEnded) {
 		playerMove(board, boardSize, totalAttackers, totalDefenders, squareChars, currentTurn, infoMessage, gameEnded);
 
-		if (hasGameEnded(board, boardSize)) gameEnded = true;
+		if (hasGameEnded(board, boardSize, infoMessage)) gameEnded = true;
 	}
 
 	printTable(board, boardSize, squareChars);
 	std::cout << "~Game ended~" << std::endl;
-	if (infoMessage[0] != '\0') {
-		std::cout << infoMessage << std::endl;
-	}
+	// Opposite player because after the last playMove() currentTurn gets changed
+	std::cout << ((!currentTurn == ATTACKING_PLAYER) ? "Attackers" : "Defenders") << " won!" << std::endl;
+	std::cout << infoMessage << std::endl;
 	std::cout << "Press Enter to continue...";
 	std::cin.get();
 }
