@@ -590,14 +590,15 @@ bool isValidCommand(int*** board, int boardSize, char* command, char* error, boo
 }
 
 bool canCaptureKing(int*** board, int boardSize, int row, int col) {
-	const int directions[4][2] = {
+	const int DIRECTIONS_COUNT = 4;
+	const int directions[DIRECTIONS_COUNT][2] = {
 	    {0, -1}, // Left
 	    {0, 1},  // Right
 	    {1, 0},  // Up
 	    {-1, 0}  // Down
 	};
 
-	for (int i = 0; i < 4; ++i) {
+	for (int i = 0; i < DIRECTIONS_COUNT; ++i) {
 		int dRow = directions[i][0], dCol = directions[i][1];
 
 		bool isEdge = row + dRow < 0 || row + dRow >= boardSize || col + dCol < 0 || col + dCol >= boardSize;
@@ -671,7 +672,8 @@ void executeMoveCommand(int*** board, int boardSize, char* command, char* infoMe
 	board[toRow][toCol][PIECE] = board[fromRow][fromCol][PIECE];
 	board[fromRow][fromCol][PIECE] = EMPTY;
 
-	const int directions[4][2] = {
+	const int DIRECTIONS_COUNT = 4;
+	const int directions[DIRECTIONS_COUNT][2] = {
 	    {0, -1}, // Left
 	    {0, 1},  // Right
 	    {1, 0},  // Up
@@ -683,7 +685,7 @@ void executeMoveCommand(int*** board, int boardSize, char* command, char* infoMe
 	movesFile << (char)('a' + fromCol) << (fromRow + 1) << (char)('a' + toCol) << (toRow + 1);
 
 	bool atLeastOneCapture = false;
-	for (int i = 0; i < 4; ++i) {
+	for (int i = 0; i < DIRECTIONS_COUNT; ++i) {
 		int dRow = directions[i][0], dCol = directions[i][1];
 		int captureRow = toRow + dRow;
 		int captureCol = toCol + dCol;
@@ -1034,7 +1036,7 @@ char* inputFilePath(const char* startingPath, const char* message) {
 	char* chosenFile = new char[STR_MAX_LENGTH];
 	do {
 		std::cout << message;
-		std::cin.getline(chosenFile, 256);
+		std::cin.getline(chosenFile, STR_MAX_LENGTH);
 		strcpy(filePath, startingPath);
 		strcat(filePath, chosenFile);
 		strcat(filePath, ".vch");
