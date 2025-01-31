@@ -628,10 +628,11 @@ bool canCapture(int*** board, int boardSize, int row, int col, int dRow, int dCo
 	if (twoTileAwayRow < 0 || twoTileAwayRow >= boardSize || twoTileAwayCol < 0 || twoTileAwayCol >= boardSize) return false;
 
 	const int* twoTileAwayPosition = board[twoTileAwayRow][twoTileAwayCol];
+	const int neighbourPiece = board[neighbourRow][neighbourCol][PIECE];
 	const int currentPiece = board[row][col][PIECE];
 
-	bool samePiece = (twoTileAwayPosition[PIECE] == currentPiece);
-	bool kingThrone = (twoTileAwayPosition[SQUARE] == KING_THRONE && twoTileAwayPosition[PIECE] == EMPTY);
+	bool samePiece = (twoTileAwayPosition[PIECE] == currentPiece) || (twoTileAwayPosition[PIECE] == KING && currentPiece == DEFENDER);
+	bool kingThrone = (twoTileAwayPosition[SQUARE] == KING_THRONE && twoTileAwayPosition[PIECE] == EMPTY && currentPiece != neighbourPiece);
 	bool kingEscape = (twoTileAwayPosition[SQUARE] == KING_ESCAPE);
 
 	return samePiece || kingThrone || kingEscape;
