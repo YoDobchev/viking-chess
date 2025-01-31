@@ -99,6 +99,7 @@ size_t strlen(const char* str) {
 	return length;
 }
 
+// The term 'Position' refers to a group consisting of a piece and its square
 enum PositionTypes {
 	PIECE,
 	SQUARE,
@@ -620,18 +621,21 @@ bool canCapture(int*** board, int boardSize, int row, int col, int dRow, int dCo
 
 	if (neighbourRow < 0 || neighbourRow >= boardSize || neighbourCol < 0 || neighbourCol >= boardSize) return false;
 
-	if (board[neighbourRow][neighbourCol][PIECE] == EMPTY) return false;
+	const int neighbourPiece = board[neighbourRow][neighbourCol][PIECE];
 
-	if (board[neighbourRow][neighbourCol][PIECE] == KING) return canCaptureKing(board, boardSize, neighbourRow, neighbourCol);
+	if (neighbourPiece == EMPTY) return false;
+
+	if (neighbourPiece == KING) return canCaptureKing(board, boardSize, neighbourRow, neighbourCol);
 
 	if (twoTileAwayRow < 0 || twoTileAwayRow >= boardSize || twoTileAwayCol < 0 || twoTileAwayCol >= boardSize) return false;
 
 	const int* twoTileAwayPosition = board[twoTileAwayRow][twoTileAwayCol];
-	const int neighbourPiece = board[neighbourRow][neighbourCol][PIECE];
 	const int currentPiece = board[row][col][PIECE];
 
+	if (currentPiece == neighbourPiece) return false;
+
 	bool samePiece = (twoTileAwayPosition[PIECE] == currentPiece) || (twoTileAwayPosition[PIECE] == KING && currentPiece == DEFENDER);
-	bool kingThrone = (twoTileAwayPosition[SQUARE] == KING_THRONE && twoTileAwayPosition[PIECE] == EMPTY && currentPiece != neighbourPiece);
+	bool kingThrone = (twoTileAwayPosition[SQUARE] == KING_THRONE && twoTileAwayPosition[PIECE] == EMPTY);
 	bool kingEscape = (twoTileAwayPosition[SQUARE] == KING_ESCAPE);
 
 	return samePiece || kingThrone || kingEscape;
