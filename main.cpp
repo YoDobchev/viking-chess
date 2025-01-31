@@ -635,7 +635,9 @@ bool canCapture(int*** board, int boardSize, int row, int col, int dRow, int dCo
 
 	if (currentPiece == neighbourPiece) return false;
 
-	bool samePiece = (twoTileAwayPosition[PIECE] == currentPiece) || (twoTileAwayPosition[PIECE] == KING && currentPiece == DEFENDER);
+	bool isKingAndDefender = (twoTileAwayPosition[PIECE] == KING && currentPiece == DEFENDER)
+	                         || (twoTileAwayPosition[PIECE] == DEFENDER && currentPiece == KING);
+	bool samePiece = (twoTileAwayPosition[PIECE] == currentPiece) || isKingAndDefender;
 	bool kingThrone = (twoTileAwayPosition[SQUARE] == KING_THRONE && twoTileAwayPosition[PIECE] == EMPTY);
 	bool kingEscape = (twoTileAwayPosition[SQUARE] == KING_ESCAPE);
 
