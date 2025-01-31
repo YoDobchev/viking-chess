@@ -43,7 +43,6 @@ void swapChars(char& a, char& b) {
 
 void toLowerStr(char* str) {
 	if (str == nullptr) return;
-
 	while (*str) {
 		if (*str >= 'A' && *str <= 'Z') {
 			*str = *str + ('a' - 'A');
@@ -811,10 +810,11 @@ void appendPlayerTurnInfo(char* infoMessage, bool player) {
 	strcat(infoMessage, (player == ATTACKING_PLAYER) ? "Attacker's turn" : "Defender's turn");
 }
 
-void getPiecesCount(int*** board, int boardSize, int& attackerCount, int& defenderCount, int& kingCount) {
+void getPiecesInfo(int*** board, int boardSize, int& attackerCount, int& defenderCount, bool& isKingAlive, bool& isKingOnEscape) {
 	attackerCount = 0;
 	defenderCount = 0;
-	kingCount = 0;
+	isKingAlive = false;
+	isKingOnEscape = false;
 
 	for (int i = 0; i < boardSize; ++i) {
 		for (int j = 0; j < boardSize; ++j) {
@@ -823,7 +823,10 @@ void getPiecesCount(int*** board, int boardSize, int& attackerCount, int& defend
 			} else if (board[i][j][PIECE] == DEFENDER) {
 				defenderCount++;
 			} else if (board[i][j][PIECE] == KING) {
-				kingCount++;
+				isKingAlive = true;
+				if (board[i][j][SQUARE] == KING_ESCAPE) {
+					isKingOnEscape = true;
+				}
 			}
 		}
 	}
@@ -851,8 +854,9 @@ void intToStr(int num, char* str) {
 
 void appendLeftPiecesInfo(int*** board, int boardSize, int totalAttackers, int totalDefenders, char* infoMessage) {
 	strcat(infoMessage, "Pieces left: ");
-	int attackerCount, defenderCount, kingCount;
-	getPiecesCount(board, boardSize, attackerCount, defenderCount, kingCount);
+	bool isKingAlive, unusedKingEscape;
+	int attackerCount, defenderCount;
+	getPiecesInfo(board, boardSize, attackerCount, defenderCount, isKingAlive, unusedKingEscape);
 
 	strcat(infoMessage, "Attackers: ");
 	char numStr[STR_MAX_LENGTH];
@@ -863,7 +867,7 @@ void appendLeftPiecesInfo(int*** board, int boardSize, int totalAttackers, int t
 	strcat(infoMessage, numStr);
 
 	strcat(infoMessage, ", Defenders: ");
-	intToStr(defenderCount + kingCount, numStr);
+	intToStr(defenderCount + isKingAlive, numStr);
 	strcat(infoMessage, numStr);
 	strcat(infoMessage, "/");
 	const int TOTAL_KINGS = 1;
@@ -912,25 +916,7 @@ bool hasGameEnded(int*** board, int boardSize, char* infoMessage) {
 	bool isKingAlive = false;
 	bool isKingOnEscape = false;
 	int attackerCount = 0, defenderCount = 0;
-
-	for (int i = 0; i < boardSize; ++i) {
-		for (int j = 0; j < boardSize; ++j) {
-			int piece = board[i][j][PIECE];
-			int square = board[i][j][SQUARE];
-
-			if (piece == ATTACKER) {
-				attackerCount++;
-			} else if (piece == DEFENDER) {
-				defenderCount++;
-			} else if (piece == KING) {
-				isKingAlive = true;
-				if (square == KING_ESCAPE) {
-					isKingOnEscape = true;
-				}
-			}
-		}
-		if (isKingOnEscape) break;
-	}
+	getPiecesInfo(board, boardSize, attackerCount, defenderCount, isKingAlive, isKingOnEscape);
 
 	if (attackerCount == 0) {
 		strcpy(infoMessage, "No more attackers left");
